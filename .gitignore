@@ -1,0 +1,19 @@
+# Copyrighted dictionary sources and generated data packs: never commit.
+dictionaries/
+sources/
+datapacks/
+
+# Python
+tools/.venv/
+__pycache__/
+*.pyc
+
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+
+# macOS
+.DS_Store
