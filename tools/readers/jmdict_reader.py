@@ -14,6 +14,7 @@ UNCOMMON = 99
 class KanjiForm:
     text: str
     freq: int
+    search_only: bool = False  # ke_inf sK: findable by search, never shown as the spelling
 
 
 @dataclass
@@ -22,6 +23,7 @@ class ReadingForm:
     freq: int
     no_kanji: bool
     restr: list[str]  # kanji spellings this reading applies to; empty = all
+    search_only: bool = False  # re_inf sk
 
 
 @dataclass
@@ -34,7 +36,26 @@ class JmEntry:
     usually_kana_first: bool = False  # the first (main) sense is tagged `uk`
 
     def pairs(self):
-        """Valid (kanji or None, reading, freq) combinations."""
+        """Valid (kanji or None, reading, freq) combinations that may be shown.
+
+        Search-only spellings (JMdict sK/sk) are left out: 居らっしゃる is only a search
+        spelling of いらっしゃる, so the word counts as written in kana.
+        """
+        kanji = [k for k in self.kanji if not k.search_only]
+        readings = [r for r in self.readings if not r.search_only] or self.readings
+        names = {k.text for k in kanji}
+        out = []
+        for r in readings:
+            if not kanji or r.no_kanji or (r.restr and not names & set(r.restr)):
+                out.append((None, r.text, r.freq))
+                continue
+            for k in kanji:
+                if not r.restr or k.text in r.restr:
+                    out.append((k.text, r.text, max(k.freq, r.freq)))
+        return out
+
+    def all_pairs(self):
+        """Like pairs(), but over every spelling including search-only ones (for matching)."""
         out = []
         for r in self.readings:
             if not self.kanji or r.no_kanji:
@@ -44,6 +65,12 @@ class JmEntry:
                 if not r.restr or k.text in r.restr:
                     out.append((k.text, r.text, max(k.freq, r.freq)))
         return out
+
+    def search_only_texts(self):
+        """(text, freq) of search-only spellings: searchable keys, never displayed."""
+        best = min(r.freq for r in self.readings)
+        return [(k.text, max(k.freq, best)) for k in self.kanji if k.search_only] + \
+            [(r.text, r.freq) for r in self.readings if r.search_only]
 
     @property
     def freq(self) -> int:
@@ -69,7 +96,8 @@ def read_jmdict(path: Path):
     root = ET.fromstring(raw)
     for e in root.iter("entry"):
         kanji = [
-            KanjiForm(k.findtext("keb"), _freq([p.text for p in k.findall("ke_pri")]))
+            KanjiForm(k.findtext("keb"), _freq([p.text for p in k.findall("ke_pri")]),
+                      any(i.text == "sK" for i in k.findall("ke_inf")))
             for k in e.findall("k_ele")
         ]
         readings = [
@@ -78,6 +106,7 @@ def read_jmdict(path: Path):
                 _freq([p.text for p in r.findall("re_pri")]),
                 r.find("re_nokanji") is not None,
                 [x.text for x in r.findall("re_restr")],
+                any(i.text == "sk" for i in r.findall("re_inf")),
             )
             for r in e.findall("r_ele")
         ]

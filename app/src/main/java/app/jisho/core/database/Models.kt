@@ -14,10 +14,18 @@ data class Candidate(
     val kanjiNote: String = "",
     /** Start of the definition, added only when rows would otherwise look identical. */
     val hint: String = "",
+    /** Set when the row was found by undoing an inflection (食べなかった -> 食べる). */
+    val inflection: Inflection? = null,
 ) {
     /** What the user sees; two rows in one result list must never share it. */
-    val displayKey: List<String> get() = listOf(headword, reading, kanjiNote, hint)
+    val displayKey: List<Any?> get() = listOf(headword, reading, kanjiNote, hint, inflection)
 }
+
+/** How the typed form relates to the dictionary form: [reasons] are rule-table label keys. */
+data class Inflection(val from: String, val reasons: List<String>)
+
+/** One search_key row with the entry's parts of speech (JMdict codes). */
+data class KeyHit(val key: String, val entryId: Long, val pos: List<String>, val rank: Int)
 
 /** A search result that exists only in one dictionary (encyclopedia items, idioms...). */
 data class DictCandidate(val dictId: String, val entryId: Long, val title: String)

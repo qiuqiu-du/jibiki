@@ -36,8 +36,11 @@ import androidx.lifecycle.viewModelScope
 import app.jisho.R
 import app.jisho.core.data.DictInfo
 import app.jisho.core.data.DictionaryRepository
+import app.jisho.core.database.Candidate
 import app.jisho.core.database.CoreEntry
 import app.jisho.core.database.DictEntry
+import app.jisho.core.database.Inflection
+import app.jisho.core.designsystem.reasonText
 import app.jisho.core.designsystem.BodyColors
 import app.jisho.core.designsystem.formatAccent
 import app.jisho.core.designsystem.ja
@@ -50,7 +53,8 @@ import kotlinx.coroutines.launch
 
 /** What the entry page shows: a JMdict-backed word, one dictionary item, or a link lookup. */
 sealed interface EntryTarget {
-    data class Core(val id: Long) : EntryTarget
+    /** [inflection]: set when reached from an inflected form (食べなかった -> 食べる). */
+    data class Core(val id: Long, val inflection: Inflection? = null) : EntryTarget
     data class Dict(val dictId: String, val id: Long) : EntryTarget
     data class Lookup(val key: String) : EntryTarget
 }
@@ -58,7 +62,12 @@ sealed interface EntryTarget {
 sealed interface EntryUiState {
     data object Loading : EntryUiState
     data object NotFound : EntryUiState
-    data class Word(val core: CoreEntry, val sections: List<Pair<DictInfo, List<DictEntry>>>) : EntryUiState
+    data class Word(
+        val core: CoreEntry,
+        val sections: List<Pair<DictInfo, List<DictEntry>>>,
+        val inflection: Inflection? = null,
+        val baseForms: List<Candidate> = emptyList(),
+    ) : EntryUiState
     data class Single(val dict: DictInfo, val entry: DictEntry) : EntryUiState
 }
 
@@ -72,16 +81,17 @@ class EntryViewModel(private val repository: DictionaryRepository, target: Entry
 
     private suspend fun load(target: EntryTarget): EntryUiState = when (target) {
         is EntryTarget.Core -> repository.entry(target.id)
-            ?.let { EntryUiState.Word(it.core, it.definitions.filter { d -> d.second.isNotEmpty() }) }
+            ?.let { EntryUiState.Word(it.core, it.definitions.filter { d -> d.second.isNotEmpty() }, target.inflection, it.baseForms) }
             ?: EntryUiState.NotFound
         is EntryTarget.Dict -> repository.dictEntry(target.dictId, target.id)
             ?.let { EntryUiState.Single(it.first, it.second) } ?: EntryUiState.NotFound
         is EntryTarget.Lookup -> {
             val r = repository.search(target.key)
-            val word = r.words.firstOrNull { it.exact }
+            // Links may point at inflected forms; their dictionary form counts as a match.
+            val word = r.words.firstOrNull { it.exact || it.inflection != null }
             val dictOnly = r.dictOnly.firstOrNull()
             when {
-                word != null -> load(EntryTarget.Core(word.entryId))
+                word != null -> load(EntryTarget.Core(word.entryId, word.inflection))
                 dictOnly != null -> load(EntryTarget.Dict(dictOnly.dictId, dictOnly.entryId))
                 else -> EntryUiState.NotFound
             }
@@ -96,6 +106,7 @@ fun EntryScreen(
     onBack: () -> Unit,
     onOpenDictEntry: (String, Long) -> Unit,
     onLookup: (String) -> Unit,
+    onOpenEntry: (Candidate) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Scaffold(
@@ -115,12 +126,13 @@ fun EntryScreen(
                 EntryUiState.Loading -> Unit
                 EntryUiState.NotFound -> Text(stringResource(R.string.entry_no_definition))
                 is EntryUiState.Word -> {
-                    WordHeader(s.core)
+                    WordHeader(s.core, s.inflection)
                     if (s.sections.isEmpty()) {
                         Text(
                             stringResource(R.string.entry_no_definition),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        if (s.baseForms.isNotEmpty()) BaseForms(s.baseForms, onOpenEntry)
                     }
                     s.sections.forEachIndexed { i, (dict, entries) ->
                         DictSection(dict, entries, initiallyExpanded = i == 0) { href ->
@@ -143,10 +155,47 @@ private fun followLink(dictId: String, href: String, onOpenDictEntry: (String, L
     }
 }
 
+/** "可能是这些词的变形" with one tappable row per dictionary form. */
 @Composable
-private fun WordHeader(e: CoreEntry) {
+private fun BaseForms(forms: List<Candidate>, onOpen: (Candidate) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(R.string.entry_base_forms), style = MaterialTheme.typography.titleSmall)
+        forms.forEach { c ->
+            val reasons = c.inflection?.let { reasonText(it.reasons) }.orEmpty()
+            Surface(
+                onClick = { onOpen(c) },
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(c.headword, style = MaterialTheme.typography.titleMedium.ja())
+                    if (c.reading != c.headword) {
+                        Text("  " + c.reading, style = MaterialTheme.typography.bodyMedium.ja(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (reasons.isNotEmpty()) {
+                        Text("  （$reasons）", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WordHeader(e: CoreEntry, inflection: Inflection?) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(e.headword, style = MaterialTheme.typography.displaySmall.ja())
+        // 食べなかった ← 食べる（否定・过去）
+        inflection?.let { inf ->
+            val reasons = reasonText(inf.reasons)
+            Text(
+                if (reasons.isEmpty()) stringResource(R.string.entry_inflection, inf.from, e.headword)
+                else stringResource(R.string.entry_inflection_reasons, inf.from, e.headword, reasons),
+                style = MaterialTheme.typography.bodyMedium.ja(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         // One line per distinct reading, each with its pitch numbers.
         e.forms.map { it.reading }.distinct().forEach { reading ->
             Row(verticalAlignment = Alignment.CenterVertically) {

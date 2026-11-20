@@ -17,6 +17,7 @@ from lib.markup import convert, plain_text, resolve_links
 from lib.packdb import (BODY_FORMAT_VERSION, DICT_SCHEMA, DICT_SCHEMA_VERSION, ZSTD_LEVEL,
                         fresh_db, finish_db, train_zdict, write_meta)
 from lib.textnorm import kata_to_hira, search_key
+from readers.jmdict_reader import read_jmdict
 
 ADAPTERS = {"daijisen": "dicts.daijisen", "meikyo3": "dicts.meikyo3", "shinmeikai8": "dicts.shinmeikai8"}
 
@@ -31,16 +32,22 @@ def load_core_keys():
 
 
 def load_core_forms():
-    conn = sqlite3.connect(paths.CORE_DB)
+    """Alignment indexes, read from JMdict itself (not core.db's display forms).
+
+    by_pair: (spelling, reading) -> entries, over every JMdict spelling including search-only
+        ones (sK, e.g. 居らっしゃる), since a dictionary may print those in its headword.
+    by_kana: kana -> entries written in kana: kana-only spellings (after dropping search-only
+        kanji) and words JMdict marks as usually written in kana (uk).
+    """
     by_pair = collections.defaultdict(set)
     by_kana = collections.defaultdict(set)
-    for seq, kanji, reading in conn.execute("SELECT entry_id, kanji, reading FROM form"):
-        hira = kata_to_hira(reading)
-        if kanji:
-            by_pair[(kanji, hira)].add(seq)
-        else:
-            by_kana[hira].add(seq)
-    conn.close()
+    for e in read_jmdict(paths.JMDICT):
+        for kanji, reading, _ in e.all_pairs():
+            if kanji:
+                by_pair[(kanji, kata_to_hira(reading))].add(e.seq)
+        for kanji, reading, _ in e.pairs():
+            if not kanji or e.usually_kana:
+                by_kana[kata_to_hira(reading)].add(e.seq)
     return by_pair, by_kana
 
 

@@ -16,12 +16,76 @@
     <string name="search_clear">清空</string>
     <string name="search_no_result">没有找到「%1$s」</string>
     <string name="search_dict_only">只收录在单本辞书里的词条</string>
+    <string name="search_inflection">← %1$s</string>
+    <string name="search_inflection_reasons">← %1$s（%2$s）</string>
+    <string name="search_segments">句中词语</string>
+    <string name="search_handwriting">手写</string>
     <string name="search_empty_hint">输入后实时显示候选</string>
+
+    <!-- Inflection labels: keys of assets/deinflect_rules.tsv -->
+    <string name="lemma_reason_adverbial">連用</string>
+    <string name="lemma_reason_attributive">連体</string>
+    <string name="lemma_reason_become">変化</string>
+    <string name="lemma_reason_causative">使役</string>
+    <string name="lemma_reason_causative_passive">使役受身</string>
+    <string name="lemma_reason_copula">断定</string>
+    <string name="lemma_reason_stem">連用形</string>
+    <string name="lemma_reason_cond">仮定</string>
+    <string name="lemma_reason_contraction">縮約</string>
+    <string name="lemma_reason_even">逆接</string>
+    <string name="lemma_reason_finish">完了</string>
+    <string name="lemma_reason_honorific">敬語</string>
+    <string name="lemma_reason_imperative">命令</string>
+    <string name="lemma_reason_must">義務</string>
+    <string name="lemma_reason_neg">否定</string>
+    <string name="lemma_reason_passive">受身</string>
+    <string name="lemma_reason_passive_potential">受身/可能</string>
+    <string name="lemma_reason_past">過去</string>
+    <string name="lemma_reason_polite">丁寧</string>
+    <string name="lemma_reason_potential">可能</string>
+    <string name="lemma_reason_prepare">準備</string>
+    <string name="lemma_reason_progressive">継続</string>
+    <string name="lemma_reason_request">依頼</string>
+    <string name="lemma_reason_resultative">結果</string>
+    <string name="lemma_reason_seems">様態</string>
+    <string name="lemma_reason_tara">条件</string>
+    <string name="lemma_reason_tari">並列</string>
+    <string name="lemma_reason_te">て形</string>
+    <string name="lemma_reason_too">過度</string>
+    <string name="lemma_reason_try">試行</string>
+    <string name="lemma_reason_volitional">意志</string>
+    <string name="lemma_reason_want">希望</string>
+    <string name="lemma_reason_while">同時</string>
+
+    <!-- Handwriting -->
+    <string name="hw_undo">撤销一笔</string>
+    <string name="hw_clear">清空</string>
+    <string name="hw_close">完成</string>
+    <string name="hw_download_prompt">手写识别需要先下载日语模型（约 20 MB），下载后可离线使用。</string>
+    <string name="hw_download">下载模型</string>
+    <string name="hw_downloading">正在下载手写模型…</string>
+    <string name="hw_failed">手写模型不可用：%1$s</string>
+    <string name="hw_retry">重试</string>
+    <string name="hw_candidates_hint">候选字会显示在这里</string>
+    <string name="hw_hint">在这里书写，可以一次写多个字</string>
+
+    <!-- Navigation and settings -->
+    <string name="nav_search">查词</string>
+    <string name="nav_settings">设置</string>
+    <string name="settings_title">设置</string>
+    <string name="settings_lemmatizer">分词与变形还原</string>
+    <string name="settings_lemmatizer_kuromoji">Kuromoji（默认）</string>
+    <string name="settings_lemmatizer_kuromoji_desc">能把整句切成单词；同时附上活用规则表的全部候选。启动后在后台加载约 1 秒。</string>
+    <string name="settings_lemmatizer_rules">活用规则表</string>
+    <string name="settings_lemmatizer_rules_desc">只处理单个词，列出歧义词的所有原形；不占内存、无需加载。</string>
 
     <!-- Entry -->
     <string name="entry_back">返回</string>
     <string name="entry_no_definition">离线辞书里没有这个词的释义</string>
     <string name="entry_common">常用</string>
+    <string name="entry_inflection">%1$s ← %2$s</string>
+    <string name="entry_inflection_reasons">%1$s ← %2$s（%3$s）</string>
+    <string name="entry_base_forms">可能是这些词的变形</string>
     <string name="entry_other_forms">其他写法：%1$s</string>
 
     <!-- Part-of-speech labels (JMdict codes) -->

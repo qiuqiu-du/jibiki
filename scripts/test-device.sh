@@ -16,6 +16,9 @@ if ! adb shell run-as app.jisho ls files/datapacks/core.db >/dev/null 2>&1; then
 fi
 
 status=0
+# Old results would otherwise be printed when the build fails before the tests run.
+rm -f app/build/outputs/androidTest-results/connected/debug/*.xml
+adb shell run-as app.jisho rm -f files/perf-report.txt files/handwriting-report.txt
 ./gradlew :app:connectedDebugAndroidTest -q || status=$?
 python3 - <<'PY'
 import glob, re
@@ -25,5 +28,6 @@ for path in glob.glob("app/build/outputs/androidTest-results/connected/debug/*.x
     print(f"{m[1]} device tests, {int(m[2]) + int(m[3])} failed, {m[4]} skipped")
 PY
 echo "== Performance (measured on the phone)"
-adb shell run-as app.jisho cat files/perf-report.txt
+adb shell run-as app.jisho cat files/perf-report.txt 2>/dev/null || echo "(no report: the performance test did not run)"
+adb shell run-as app.jisho cat files/handwriting-report.txt 2>/dev/null || echo "(no handwriting report: model not downloaded)"
 exit $status

@@ -33,7 +33,8 @@
 | 手写识别 | Google ML Kit Digital Ink Recognition（日语模型） | 首次使用时下载，之后离线 |
 | 网页页签 | Android WebView | 原样显示，不抓取网页内容 |
 | 导航 | Navigation Compose（字符串路由，集中定义在 `navigation/AppNavHost.kt`） | 路由很少，暂不引入序列化插件 |
-| 序列化 | Kotlinx Serialization（M2 起） | 只用于备份文件、规则表 |
+| 序列化 | Kotlinx Serialization（M4 起） | 只用于备份文件；活用规则表是 TSV，几行代码就能解析，不需要它 |
+| 设置 | DataStore Preferences（`core/data/SettingsRepository`） | 目前只有还原器选择 |
 | 测试 | JUnit 4 + kotlinx-coroutines-test + sqlite-jdbc（JVM）；AndroidX Test（真机） | 见第 8 节 |
 
 **不引入**：Retrofit / OkHttp（没有 API）、Coil（没有网络图片；外字小图直接从数据包读取）、任何统计、广告、崩溃上报 SDK。
@@ -107,6 +108,8 @@ dict/                                   # 仓库根目录
 - 对外只暴露 `val uiState: StateFlow<UiState>`，内部用 `MutableStateFlow` 更新。
 - 一次性事件（Toast、导航）用 `Channel` 加 `receiveAsFlow()` 发出。
 - 输入框查词要用 `debounce` + `flatMapLatest`，新输入一到，就取消上一次查询。
+- **页面切换要跟手**：导航动画统一 200 ms（`AppNavHost` 的 `TRANSITION_MS`），不用默认的 700 ms 淡入淡出。
+- **键盘时机**：只在页面「完全显示」后弹出（`LifecycleResumeEffect`，侧滑返回松手前不会触发），且只在启动和从词条页返回时弹；离开搜索页去词条时立刻收起。输入框自己保存光标（`TextFieldValue`），重新显示时光标在末尾。
 
 ### 3.3 Data 层
 - Room `@Entity` 只在 Repository 内部使用，交给上层之前必须用 `.toDomain()` 转换成纯 Kotlin 模型。
@@ -120,7 +123,11 @@ dict/                                   # 仓库根目录
 - **候选显示**：同一列表里任何两行不能看起来一样（`Candidate.displayKey`）。假名词头附汉字（`kanjiNote`）；仍然相同的，释义一样就合并，不一样就加释义开头作提示（`hint`，由 `DictionaryRepository` 生成）。由 `DictionaryRepositoryTest.homophoneCandidatesAreDistinguishable` 保证。
 - **统一校验**：任何还原器给出的候选，都必须经过 `LemmaValidator`，检查 JMdict 里是否存在、词性和活用类型是否一致。校验逻辑只写在这一处。
 - **Kuromoji 懒加载**：Kuromoji 在 App 启动后于后台加载，不阻塞首屏；加载完成之前，先用规则表顶上。
-- **活用规则是数据**：规则写在 `assets/deinflect_rules.json` 里，不写死在代码中。新增一种边界情况，要同时加一条规则和一条测试用例。
+- **活用规则是数据**：规则写在 `assets/deinflect_rules.tsv` 里（每行：去掉的词尾、换上的词尾、适用类型、结果类型、活用说明），不写死在代码中。新增一种边界情况，要同时加一条规则和一条 `lemma_cases.tsv` 测试用例；新的活用说明键要在 `core/designsystem/InflectionLabels.kt` 和 `strings.xml` 里加文字（`LemmatizerTest.everyReasonHasALabel` 会检查）。`@prefix` 行声明敬语前缀，`@raw` 行声明输入本身可以是哪些中间形（て形、た形、連用形）及其说明。
+- **规则表是唯一的语法来源**：`KuromojiLemmatizer` 只给原形，不给说明；`CombinedLemmatizer` 只保留规则表也能从整个输入拆到的 Kuromoji 原形，并用那条规则路径的说明。不要在 Kuromoji 那边写词尾对照表。敬语框架只在去掉前缀的路径上成立，去掉前缀的读法带 `LemmaCandidate.dropsPrefix`。相关测试：`LemmatizerTest.ruleTableReachesEveryKuromojiReadingInTestSet`、`trailingJunkGivesNoLemma`、`everyLemmaRowHasLabels`、`honorificFrameNeedsPrefix`。
+- **句中词语（逐词条）**：只在 A 模式、没有完全匹配也没有还原行时显示（`DictionaryRepository.search`）。`KuromojiLemmatizer.segment` 的切分规则：自立词开始新词；助动词、て／で、接尾词、形式名词并进前一个词；「動詞・非自立」「形容詞・非自立」（补助动词）单独成词；其他助词和符号不显示。每个词查 Kuromoji 标出的原形。完整流程见设计文档 4.1。
+- **两种模式**：A（默认）= Kuromoji 结果 + 规则表全部结果，B = 只用规则表；`JishoApp` 根据设置提供当前还原器，`DictionaryRepository` 每次搜索时读取，切换设置立即生效。设置变化或 Kuromoji 加载完成时，`JishoApp.lemmatizerVersion` 变化，搜索页会重新查一次。
+- **结果顺序**：有释义的完全匹配 → 还原出的原形（带 `Candidate.inflection`，只保留有释义的）→ 没有释义的完全匹配（只在有还原行时往后排）→ 前缀匹配 → 单本辞书词条。原形之间：不去前缀的在前 → 常用度 → 变形步数 → 并列时 Kuromoji 在前。
 - **释义渲染**：数据包里存的是精简后的标记（不是原始 HTML），在 Compose 里渲染成 `AnnotatedString`；只有网页页签使用 WebView。
 
 ---
@@ -235,11 +242,11 @@ sealed interface AppResult<out T> {
 | `core/database/DictDbTest` | 三部辞书全部词条解压、标签白名单、内部链接、与 JMdict 的对齐 |
 | `core/database/RankingTest` | 排序测试集 `ranking_cases.tsv`（命中率 ≥ 95%）+ 全部常用汉字词按写法能排进前 3 |
 | `core/designsystem/DesignSystemTest` | 音调格式、正文渲染（注音、段落、链接、坏标签），并抽样渲染真实词条 |
-| `core/data/DictionaryRepositoryTest` | 罗马音和片假名输入、结果合并、词条组装 |
+| `core/data/DictionaryRepositoryTest` | 罗马音和片假名输入、结果合并（完全匹配 → 原形 → 前缀）、歧义词、整句分词、词条组装 |
 | `feature/FeatureViewModelTest` | 搜索和词条页的 UiState，链接跳转的解析 |
-| `core/lemmatizer/…`（M2） | 形态还原测试集（≥ 500 条），两种模式分别统计准确率 |
-| `androidTest/DeviceRuntimeTest` | 在 Android 运行时上重跑查询键一致性向量、罗马音、正文渲染（抓 ICU 正则等平台差异） |
-| `androidTest/DevicePerformanceTest` | 真机上候选 p95 ≤ 50 ms、词条 p95 ≤ 150 ms |
+| `core/lemmatizer/LemmatizerTest` | 形态还原测试集 `lemma_cases.tsv`（565 条），A、B 两种模式都必须全部通过，并打印各类别准确率和第一名命中率；规则表格式、词性校验、敬语前缀、整句分词、每行候选都有活用说明 |
+| `androidTest/DeviceRuntimeTest` | 在 Android 运行时上重跑查询键一致性向量、罗马音、正文渲染（抓 ICU 正则等平台差异），以及整个形态还原测试集（Kuromoji 从 APK 里读词典） |
+| `androidTest/DevicePerformanceTest` | 真机上候选 p95 ≤ 50 ms（含活用形和整句）、词条 p95 ≤ 150 ms；记录 Kuromoji 加载时间和内存 |
 
 **规则：**
 - 测试共用 `testing/TestPacks.kt`（打开数据包、读测试资源），不要在各文件里重复写。

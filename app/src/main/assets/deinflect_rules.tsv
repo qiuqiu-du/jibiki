@@ -1,0 +1,234 @@
+# Deinflection rules for the rule-table lemmatizer (RuleLemmatizer).
+#
+# Columns (tab-separated): in, out, types_in, types_out, reasons
+#   in / out   suffix replaced (in -> out); "-" means the empty string
+#   types_in   word types the current form must have for the rule to apply. "-" = only on
+#              the raw input. The raw input counts as every final type and the intermediate
+#              types listed in @raw lines.
+#   types_out  word types of the result. Final types are checked against JMdict parts of
+#              speech by LemmaValidator; te/ta/stem/mizen are intermediate only.
+#   reasons    inflection labels (string resources lemma_reason_<key>), "-" for none
+#
+# Types: v1 (ichidan), v5 (godan, sub-type from the last kana), v5k-s (行く), v5u-s (問う, 請う),
+#        v5aru (なさる...),
+#        vk (来る), vs (する verbs and suru nouns), adj-i, adj-na,
+#        te (て/で form), ta (た/だ form), stem (連用形), mizen (未然形)
+# @raw <type> <reason> lines list the intermediate types the typed word itself can be, with
+# the label shown when a rule reads it that way (読み -> 読む is a 連用形). A bare 未然形
+# (読ま) is never a word on its own, so mizen is not listed.
+# Lines starting with @prefix name an honorific prefix (お読みになる): the input is also
+# lemmatized without it, keeping only results that undid an honorific ending.
+#
+# Every new edge case needs a rule here and a line in src/test/resources/lemma_cases.tsv.
+
+## what the typed word itself can be
+@raw	te	-
+@raw	ta	-
+@raw	stem	stem
+
+## て form -> dictionary form
+て	る	te	v1,vk	te
+いて	く	te	v5	te
+いで	ぐ	te	v5	te
+して	す	te	v5	te
+って	う	te	v5	te
+って	つ	te	v5	te
+って	る	te	v5	te
+って	く	te	v5k-s	te
+うて	う	te	v5u-s	te
+んで	む	te	v5	te
+んで	ぶ	te	v5	te
+んで	ぬ	te	v5	te
+して	する	te	vs	te
+きて	くる	te	vk	te
+ても	て	-	te	even
+でも	で	-	te	even
+
+## た form -> dictionary form
+た	る	ta	v1,vk	past
+いた	く	ta	v5	past
+いだ	ぐ	ta	v5	past
+した	す	ta	v5	past
+った	う	ta	v5	past
+った	つ	ta	v5	past
+った	る	ta	v5	past
+った	く	ta	v5k-s	past
+うた	う	ta	v5u-s	past
+んだ	む	ta	v5	past
+んだ	ぶ	ta	v5	past
+んだ	ぬ	ta	v5	past
+した	する	ta	vs	past
+きた	くる	ta	vk	past
+かった	い	ta	adj-i	past
+だった	-	ta	adj-na	past
+たら	た	-	ta	tara
+だら	だ	-	ta	tara
+たり	た	-	ta	tari
+だり	だ	-	ta	tari
+
+## auxiliaries after the て form
+いる	-	v1	te	progressive
+てる	て	v1	te	progressive
+でる	で	v1	te	progressive
+おる	-	v5	te	progressive
+しまう	-	v5	te	finish
+ちゃう	て	v5	te	finish
+じゃう	で	v5	te	finish
+おく	-	v5	te	prepare
+とく	て	v5	te	prepare
+どく	で	v5	te	prepare
+ある	-	v5	te	resultative
+みる	-	v1	te	try
+ください	-	-	te	request
+
+## 連用形 (stem) + auxiliary
+ます	-	-	stem	polite
+ました	-	-	stem	polite,past
+ません	-	-	stem	polite,neg
+ませんでした	-	-	stem	polite,neg,past
+ましょう	-	-	stem	polite,volitional
+まして	-	-	stem	polite,te
+ませ	-	-	stem	polite,imperative
+たい	-	adj-i	stem	want
+ながら	-	-	stem	while
+なさい	-	-	stem	imperative
+そう	-	-	stem	seems
+すぎる	-	v1	stem	too
+
+## honorific frames around the 連用形: お読みになる, お待ちください, お待ちする, お待ちです
+@prefix	お
+@prefix	ご
+@prefix	御
+になる	-	v5	stem	honorific
+ください	-	-	stem	honorific,request
+する	-	vs	stem	honorific
+いたす	-	v5	stem	honorific
+です	-	-	stem	honorific
+
+## 連用形 -> dictionary form
+-	る	stem	v1,vk	-
+い	う	stem	v5	-
+き	く	stem	v5	-
+ぎ	ぐ	stem	v5	-
+し	す	stem	v5	-
+ち	つ	stem	v5	-
+に	ぬ	stem	v5	-
+び	ぶ	stem	v5	-
+み	む	stem	v5	-
+り	る	stem	v5	-
+い	る	stem	v5aru	-
+し	する	stem	vs	-
+き	くる	stem	vk	-
+
+## 未然形 + auxiliary
+ない	-	adj-i	mizen	neg
+ず	-	-	mizen	neg
+ずに	-	-	mizen	neg
+ぬ	-	-	mizen	neg
+ん	-	-	mizen	neg
+なきゃ	-	-	mizen	must
+なくちゃ	-	-	mizen	must
+なければ	-	-	mizen	neg,cond
+なくて	-	-	mizen	neg,te
+ないで	-	-	mizen	neg,te
+れる	-	v1	mizen	passive
+られる	-	v1	mizen	passive_potential
+せる	-	v1	mizen	causative
+させる	-	v1	mizen	causative
+される	-	v1	mizen	causative_passive
+
+## 未然形 -> dictionary form
+-	る	mizen	v1,vk	-
+か	く	mizen	v5	-
+が	ぐ	mizen	v5	-
+さ	す	mizen	v5	-
+た	つ	mizen	v5	-
+な	ぬ	mizen	v5	-
+ば	ぶ	mizen	v5	-
+ま	む	mizen	v5	-
+ら	る	mizen	v5	-
+わ	う	mizen	v5	-
+こ	くる	mizen	vk	-
+し	する	mizen	vs	-
+さ	する	mizen	vs	-
+せ	する	mizen	vs	-
+
+## potential (godan verbs and ら抜き)
+ける	く	v1	v5	potential
+げる	ぐ	v1	v5	potential
+せる	す	v1	v5	potential
+てる	つ	v1	v5	potential
+ねる	ぬ	v1	v5	potential
+べる	ぶ	v1	v5	potential
+める	む	v1	v5	potential
+れる	る	v1	v5	potential
+える	う	v1	v5	potential
+れる	る	v1	v1,vk	potential
+
+## volitional
+よう	る	-	v1,vk	volitional
+こう	く	-	v5	volitional
+ごう	ぐ	-	v5	volitional
+そう	す	-	v5	volitional
+とう	つ	-	v5	volitional
+のう	ぬ	-	v5	volitional
+ぼう	ぶ	-	v5	volitional
+もう	む	-	v5	volitional
+ろう	る	-	v5	volitional
+おう	う	-	v5	volitional
+しよう	する	-	vs	volitional
+こよう	くる	-	vk	volitional
+
+## imperative
+ろ	る	-	v1	imperative
+よ	る	-	v1	imperative
+け	く	-	v5	imperative
+げ	ぐ	-	v5	imperative
+せ	す	-	v5	imperative
+て	つ	-	v5	imperative
+ね	ぬ	-	v5	imperative
+べ	ぶ	-	v5	imperative
+め	む	-	v5	imperative
+れ	る	-	v5	imperative
+え	う	-	v5	imperative
+い	る	-	v5aru	imperative
+しろ	する	-	vs	imperative
+せよ	する	-	vs	imperative
+こい	くる	-	vk	imperative
+来い	来る	-	vk	imperative
+
+## conditional (ば)
+れば	る	-	v1,vk,v5	cond
+けば	く	-	v5	cond
+げば	ぐ	-	v5	cond
+せば	す	-	v5	cond
+てば	つ	-	v5	cond
+ねば	ぬ	-	v5	cond
+べば	ぶ	-	v5	cond
+めば	む	-	v5	cond
+えば	う	-	v5	cond
+すれば	する	-	vs	cond
+くれば	くる	-	vk	cond
+ければ	い	-	adj-i	cond
+
+## colloquial contractions
+んない	る	adj-i	v5	neg,contraction
+
+## i-adjectives
+くない	い	adj-i	adj-i	neg
+く	い	-	adj-i	adverbial
+くて	い	-	adj-i	te
+そう	い	-	adj-i	seems
+すぎる	い	v1	adj-i	too
+かろう	い	-	adj-i	volitional
+くなる	い	v5	adj-i	become
+
+## na-adjectives
+な	-	-	adj-na	attributive
+に	-	-	adj-na	adverbial
+だ	-	-	adj-na	copula
+で	-	-	adj-na	te
+です	-	-	adj-na	polite
+でした	-	-	adj-na	polite,past
+じゃない	-	adj-i	adj-na	neg
+ではない	-	adj-i	adj-na	neg

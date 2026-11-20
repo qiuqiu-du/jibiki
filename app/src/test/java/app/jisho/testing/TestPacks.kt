@@ -1,6 +1,11 @@
 package app.jisho.testing
 
+import app.jisho.core.data.DictionaryRepository
 import app.jisho.core.data.PackOpener
+import app.jisho.core.lemmatizer.CombinedLemmatizer
+import app.jisho.core.lemmatizer.KuromojiLemmatizer
+import app.jisho.core.lemmatizer.RuleLemmatizer
+import com.atilika.kuromoji.ipadic.Tokenizer
 import app.jisho.core.database.CoreDb
 import app.jisho.core.database.DictDb
 import app.jisho.core.database.SqlDb
@@ -63,6 +68,15 @@ object TestPacks {
     /** Shared instances for read-only tests (opening packs is the slow part). */
     val sharedCore: CoreDb by lazy { core() }
     val sharedDicts: List<DictDb> by lazy { opener().openDictionaries() }
+
+    /** Lemmatizers built from the app's real rule table (src/main/assets). */
+    val rules by lazy { RuleLemmatizer(RuleLemmatizer.parse(File(RULES).readText())) }
+    val kuromoji by lazy { KuromojiLemmatizer(Tokenizer()) }
+    val combined by lazy { CombinedLemmatizer({ kuromoji }, rules) }
+    const val RULES = "src/main/assets/deinflect_rules.tsv"
+
+    /** A repository set up like the app in the default (Kuromoji) mode. */
+    fun repositoryWithLemmatizer() = DictionaryRepository(opener(), { combined }, { kuromoji })
 
     fun resourceLines(name: String): List<String> =
         TestPacks::class.java.classLoader!!.getResource(name)!!.readText().lines()

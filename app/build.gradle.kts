@@ -34,7 +34,7 @@ android {
         compose = true
         buildConfig = true
     }
-    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    packaging { resources.excludes += listOf("/META-INF/{AL2.0,LGPL2.1}", "/META-INF/CONTRIBUTORS.md", "/META-INF/LICENSE.md") }
     // On-device tests reuse the JVM test vectors (search keys, ranking cases).
     sourceSets["androidTest"].resources.srcDir("src/test/resources")
     testOptions {
@@ -60,6 +60,10 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.kotlinx.coroutines.android)
     implementation("${libs.zstd.jni.get()}@aar")
+    implementation(libs.compose.material.icons.core)
+    implementation(libs.kuromoji.ipadic) // lemmatizer A, about 13 MB of dictionary resources
+    implementation(libs.datastore.preferences) // settings
+    implementation(libs.mlkit.digital.ink) // handwriting; the Japanese model is downloaded on first use
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
     testImplementation(libs.sqlite.jdbc)

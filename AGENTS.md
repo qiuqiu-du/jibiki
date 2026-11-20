@@ -48,7 +48,7 @@ dict/
 | 设计 | 需求、辞书选型、分词器方案、架构规范 | ✅ 已完成 |
 | M0 数据准备 | 三种格式的读取器，生成 core.db 和大辞泉、明鏡、新明解数据包 | ✅ 2026-11-19（数据包合计 100.1 MB） |
 | M1 能查词 | 工程搭建、数据包导入、搜索、词条页、音调 | ✅ 2026-11-20 用户验收通过（候选 p95 9.3 ms、词条 p95 3.4 ms、release APK 3.0 MB） |
-| M2 查得准 | Kuromoji 和规则表两种还原器、JMdict 校验、手写、测试集 | ⬜ 下一步 |
+| M2 查得准 | Kuromoji 和规则表两种还原器、JMdict 校验、手写、测试集 | ✅ 2026-11-20 用户验收通过（测试集 565 条两种模式全过、候选 p95 9–14.5 ms、冷启动约 510 ms、release APK 25.9 MB） |
 | M3 释义完善 | 辞书管理、释义排版、网页页签 | ⬜ |
 | M4 收藏完善 | 收藏夹、导出、备份恢复、历史 | ⬜ |
 
@@ -149,6 +149,7 @@ adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es la
   - `pitch_number` 可能是「1+1」这类复合写法，原样保存；
   - 音频文件不在本地（只有远程链接），我们也不用音频。
 - **字形**：手机系统默认字体 HONOR Sans 使用中文字形。所有日文 Text 都必须设置 `LocaleList("ja")`，才会使用系统自带的 Noto Sans CJK JP。
+- **JMdict 的「只供检索」写法**：`ke_inf sK` / `re_inf sk`（约 1.6 万个汉字写法、5 千个假名写法）只能用来搜索，不能当词头显示，例如「居らっしゃる」只是「いらっしゃる」的检索写法。`jmdict_reader` 的 `pairs()` 只给可显示的写法，`all_pairs()` 给全部写法（辞书对齐用），`search_only_texts()` 只写进 `search_key`。辞书对齐直接读 JMdict，不读 core.db 的显示写法。
 - **JMdict 的常用度很粗**：只有 news1/ichi1 这类标记，很多词并列（基本动词常是 48，新闻名词却有细排名）。已用 `entry.score`（结合新明解 ＊＊/＊ 标记）和「通常写假名」加权解决，见 design-spec 4.1；改动以 `RankingTest` 为准。
 - **音调写法**：`pitch.accent` 可能是多个值（`0,2`）或复合词写法（`1+1`），显示时原样处理，不要当成单个整数解析。
 - **大辞泉外字**：正文里还剩 75 种外字小图片（约 1.5 万处），以 `<img src="daijisen/xxx.gif">` 形式保留，M3 时从 .mdd 里提取或换成 Unicode 字符。
@@ -160,6 +161,9 @@ adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es la
 - **JVM 测试通过 ≠ 手机上能跑**：Android 的正则引擎是 ICU，不支持 `(?U)` 这类桌面 Java 的写法，曾导致一输入就闪退。纯 Kotlin 代码里用到正则、`java.text`、字符集的，都要在 `DeviceRuntimeTest` 里在真机上跑一遍。
 - **真机测试默认会卸载 App**：`gradle.properties` 里已设置 `android.injected.androidTest.leaveApksInstalledAfterRun=true`，不要删，否则跑完测试导入的数据包会被清空。
 - **荣耀手机的 logcat 是加密的**（显示为 `(HKS)…(HKE)`）：查闪退用 `adb shell dumpsys dropbox --print data_app_crash`；测试数据写进 App 私有目录的文件，再用 `run-as` 读出来（`test-device.sh` 就是这么做的），不要依赖 `Log`。
+- **APK 体积已接近上限**：M2 后 release 25.9 MB（上限 30 MB），其中 Kuromoji 词典约 13 MB、手写识别原生库约 7 MB。再加依赖前先算体积。
+- **Kuromoji 打包**：两个 jar 都带 `META-INF/CONTRIBUTORS.md`，已在 `packaging` 里排除；release 包靠 `proguard-rules.pro` 保留 Kuromoji 的类。
+- **手写模型**：ML Kit 的日语模型首次使用时从 Google 下载（约 20 MB），已下载后，App 每次启动后第一次打开手写面板，检查模型状态约 0.75 秒（真机实测；纯本地，不联网，时间花在 ML Kit 下载管理组件的一次性初始化；同一进程里再查只要几毫秒），第一次识别约 0.1 秒；`DevicePerformanceTest.handwritingModelLoadTimes` 会测这几个数。面板靠设置里记住的「模型已就绪」直接打开，检查在后台做（`HandwritingViewModel.checkModel`）。App 因此带有联网权限（ML Kit 自动加入），除此之外不联网。下载按钮由用户点，不要替用户点。
 - **分词器实测**：对单个词，Kuromoji 和 Sudachi 的还原结果几乎一样。但遇到歧义词，它们只给一个答案，例如「いった」「読めない」，所以需要规则表补充候选。
 
 ## 版权与隐私

@@ -6,14 +6,31 @@ import app.jisho.core.database.CoreEntry
 import app.jisho.core.database.DictCandidate
 import app.jisho.core.database.DictDb
 import app.jisho.core.database.DictEntry
+import app.jisho.core.database.Inflection
+import app.jisho.core.lemmatizer.LemmaValidator
+import app.jisho.core.lemmatizer.Lemmatizer
+import app.jisho.core.lemmatizer.Segment
+import app.jisho.core.lemmatizer.Segmenter
 import app.jisho.core.japanese.Romaji
 import app.jisho.core.japanese.SearchKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-data class SearchResult(val query: String, val words: List<Candidate>, val dictOnly: List<DictCandidate>)
+data class SearchResult(
+    val query: String,
+    /** Exact matches, then dictionary forms of an inflected input, then prefix matches. */
+    val words: List<Candidate>,
+    val dictOnly: List<DictCandidate>,
+    /** Words of a sentence, each tappable on its own (Kuromoji mode, no exact match). */
+    val segments: List<Segment> = emptyList(),
+)
 
-data class EntryDetail(val core: CoreEntry, val definitions: List<Pair<DictInfo, List<DictEntry>>>)
+data class EntryDetail(
+    val core: CoreEntry,
+    val definitions: List<Pair<DictInfo, List<DictEntry>>>,
+    /** Only for words no dictionary defines: dictionary forms it may be an inflection of. */
+    val baseForms: List<Candidate> = emptyList(),
+)
 
 data class DictInfo(val id: String, val title: String)
 
@@ -31,8 +48,18 @@ internal fun plainText(markup: String): String =
         .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&amp;", "&")
         .replace(Regex("\\s+"), " ").trim()
 
-/** Single entry point for dictionary data; opens the packs lazily. */
-class DictionaryRepository(private val packs: PackOpener) {
+/** Inputs shorter than this aren't lemmatized: one kana is a prefix, not an inflected form. */
+private const val MIN_LEMMA_INPUT = 2
+
+/**
+ * Single entry point for dictionary data; opens the packs lazily. [lemmatizer] and
+ * [segmenter] are read on every search, so a settings change applies immediately.
+ */
+class DictionaryRepository(
+    private val packs: PackOpener,
+    private val lemmatizer: () -> Lemmatizer? = { null },
+    private val segmenter: () -> Segmenter? = { null },
+) {
     @Volatile private var core: CoreDb? = null
     @Volatile private var dicts: List<DictDb> = emptyList()
 
@@ -56,9 +83,32 @@ class DictionaryRepository(private val packs: PackOpener) {
         val text = if (Romaji.isRomaji(trimmed)) Romaji.toHiragana(trimmed) else trimmed
         val key = SearchKey.of(text)
         val kanaInput = key.isNotEmpty() && key.all { it in 'ぁ'..'ゟ' || it == 'ー' }
-        val words = distinguish(core!!.search(key, kanaInput))
+        val found = core!!.search(key, kanaInput)
+        val (exact, prefix) = found.partition { it.exact }
+        val lemmas = lemmaRows(key).filter { l -> exact.none { it.entryId == l.entryId } }.filter { hasDefinition(it.entryId) }
+        // JMdict lists some inflected expressions on their own (信じられない) that no dictionary
+        // defines; when the input also has a defined dictionary form, that form goes first.
+        val (defined, undefined) = if (lemmas.isEmpty()) exact to emptyList() else exact.partition { hasDefinition(it.entryId) }
+        val words = distinguish(defined + lemmas + undefined + prefix.filter { p -> lemmas.none { it.entryId == p.entryId } })
         val dictOnly = if (words.size < 20) dicts.flatMap { it.searchOwnKeys(key, limit = 10) } else emptyList()
-        SearchResult(raw, words, dictOnly)
+        // Word by word whenever the input is not one word or one inflected word: a sentence, a
+        // word with a particle (食べますよ), or a word with an auxiliary verb (食べてくる).
+        val segments = if (exact.isEmpty() && lemmas.isEmpty()) {
+            segmenter()?.segment(text).orEmpty().takeIf { it.size >= 2 || it.singleOrNull()?.surface != text }.orEmpty()
+        } else emptyList()
+        SearchResult(raw, words, dictOnly, segments)
+    }
+
+    private fun hasDefinition(coreId: Long) = dicts.any { it.linkedIds(coreId).isNotEmpty() }
+
+    /** Dictionary forms of an inflected input (食べなかった -> 食べる), checked against JMdict. */
+    private fun lemmaRows(key: String): List<Candidate> {
+        if (key.length < MIN_LEMMA_INPUT) return emptyList()
+        val l = lemmatizer() ?: return emptyList()
+        val validated = LemmaValidator(core!!).validate(l.lemmatize(key)).associateBy { it.entryId }
+        return core!!.candidates(validated.keys.toList()) { validated.getValue(it).key }.map { c ->
+            c.copy(exact = false, inflection = Inflection(key, validated.getValue(c.entryId).candidate.reasons))
+        }
     }
 
     /**
@@ -99,7 +149,13 @@ class DictionaryRepository(private val packs: PackOpener) {
     suspend fun entry(coreId: Long): EntryDetail? = withContext(Dispatchers.IO) {
         ensureOpen()
         val entry = core!!.entry(coreId) ?: return@withContext null
-        EntryDetail(entry, dicts.map { DictInfo(it.dictId, it.title) to it.entriesForCore(coreId) })
+        val definitions = dicts.map { DictInfo(it.dictId, it.title) to it.entriesForCore(coreId) }
+        // An undefined word may be an inflected form (信じられない -> 信じる): point to it.
+        val baseForms = if (definitions.any { it.second.isNotEmpty() }) emptyList() else
+            entry.forms.map { SearchKey.of(it.kanji ?: it.reading) }.distinct()
+                .flatMap { lemmaRows(it) }.distinctBy { it.entryId }
+                .filter { it.entryId != coreId && hasDefinition(it.entryId) }
+        EntryDetail(entry, definitions, baseForms)
     }
 
     suspend fun dictEntry(dictId: String, id: Long): Pair<DictInfo, DictEntry>? = withContext(Dispatchers.IO) {

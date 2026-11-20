@@ -47,16 +47,32 @@ class CoreDb(
             }
         }
         if (ids.isEmpty()) return emptyList()
-        val idList = ids.toList()
+        val exactSet = exact.toSet()
+        return rows(ids.toList(), { key }, { it in exactSet })
+    }
+
+    /** Result rows for entries found some other way (lemmatizer); [keyOf] is the key each was found by. */
+    fun candidates(ids: List<Long>, keyOf: (Long) -> String): List<Candidate> =
+        if (ids.isEmpty()) emptyList() else rows(ids, keyOf) { true }
+
+    private fun rows(idList: List<Long>, keyOf: (Long) -> String, isExact: (Long) -> Boolean): List<Candidate> {
         val forms = formsFor(idList)
         val accents = accentsFor(idList)
         val usuallyKana = db.query("SELECT id, flags FROM entry WHERE id IN (${idList.joinToString(",")})") {
             it.long(0) to (it.int(1) and usuallyKanaMask != 0)
         }.toMap()
-        val exactSet = exact.toSet()
         return idList.map { id ->
-            display(id, forms[id].orEmpty(), key, usuallyKana[id] == true, id in exactSet, accents[id].orEmpty())
+            display(id, forms[id].orEmpty(), keyOf(id), usuallyKana[id] == true, isExact(id), accents[id].orEmpty())
         }
+    }
+
+    /** Exact-key lookup with parts of speech, for lemma validation. */
+    fun lookupKeys(keys: List<String>): List<KeyHit> = keys.chunked(400).flatMap { chunk ->
+        db.query(
+            "SELECT s.key, s.entry_id, e.pos, s.rank FROM search_key s JOIN entry e ON e.id = s.entry_id " +
+                "WHERE s.key IN (${chunk.indices.joinToString(",") { "?${it + 1}" }})",
+            chunk,
+        ) { KeyHit(it.string(0), it.long(1), it.string(2).split(','), it.int(3)) }
     }
 
     /**

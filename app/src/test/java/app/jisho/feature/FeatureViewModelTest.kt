@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -47,6 +48,16 @@ class FeatureViewModelTest {
         vm.onQueryChange("")
         assertEquals(null, withTimeout(10_000) { vm.result.first { it == null } })
         collector.cancel()
+    }
+
+    /** Keyboard: open on launch and after coming back from a word; not after settings. */
+    @Test fun keyboardOpensOnLaunchAndAfterReturningFromAWord() {
+        val vm = SearchViewModel(repo, debounceMs = 0)
+        assertTrue(vm.consumeFocusRequest())       // app launch
+        assertFalse(vm.consumeFocusRequest())      // back from settings / app switcher
+        vm.focusOnReturn()                         // opened an entry
+        assertTrue(vm.consumeFocusRequest())       // back from the entry
+        assertFalse(vm.consumeFocusRequest())
     }
 
     @Test fun coreEntryShowsOnlyDictionariesWithDefinitions() {

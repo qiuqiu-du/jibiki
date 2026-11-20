@@ -204,6 +204,11 @@ def main():
             if text:
                 k = (search_key(text), seq)
                 keys[k] = min(freq, keys.get(k, 999))
+    # Search-only spellings (JMdict sK/sk) can be typed, but rank below shown spellings.
+    for e in entries:
+        for text, freq in e.search_only_texts():
+            k = (search_key(text), e.seq)
+            keys.setdefault(k, max(freq, 98))
     # Rank is precomputed so prefix search is a single-table range scan (no joins or grouping),
     # which keeps one-kana queries (tens of thousands of matches) fast on the phone.
     conn.executemany("INSERT INTO search_key VALUES (?,?,?)",
