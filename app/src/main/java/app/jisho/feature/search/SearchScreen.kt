@@ -1,5 +1,6 @@
 package app.jisho.feature.search
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -106,6 +107,9 @@ fun SearchScreen(
                     CandidateRow(c) { onOpenEntry(c.entryId) }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
+                if (r.words.isNotEmpty() && r.dictOnly.isNotEmpty()) {
+                    item(key = "dictOnlyHeader") { DictOnlyHeader() }
+                }
                 items(r.dictOnly, key = { "d${it.dictId}${it.entryId}" }) { c ->
                     DictCandidateRow(c) { onOpenDictEntry(c.dictId, c.entryId) }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -154,6 +158,19 @@ private fun CandidateRow(c: Candidate, onClick: () -> Unit) {
         )
     }
     }
+}
+
+/** Separates words that only one dictionary has (no JMdict entry, so no shared main entry). */
+@Composable
+private fun DictOnlyHeader() {
+    Text(
+        stringResource(R.string.search_dict_only),
+        modifier = Modifier.fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

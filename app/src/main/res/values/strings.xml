@@ -15,6 +15,7 @@
     <string name="search_hint">输入日语、假名或罗马音</string>
     <string name="search_clear">清空</string>
     <string name="search_no_result">没有找到「%1$s」</string>
+    <string name="search_dict_only">只收录在单本辞书里的词条</string>
     <string name="search_empty_hint">输入后实时显示候选</string>
 
     <!-- Entry -->
