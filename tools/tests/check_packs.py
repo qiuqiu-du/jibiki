@@ -40,7 +40,7 @@ ALIGN = [
 ]
 
 ALLOWED_TAGS = {"p", "br", "b", "i", "sup", "sub", "ruby", "rt", "span", "a", "img"}
-ALLOWED_SPAN = {"pos", "sense", "ex", "label", "note", "mark"}
+ALLOWED_SPAN = {"pos", "sense", "ex", "label", "note", "mark", "box-b", "box-w", "num-c"}
 
 failures = []
 
@@ -82,6 +82,8 @@ def check_pack(core, dict_id):
 
     # Markup vocabulary and link integrity over every entry.
     bad_tags, bad_links = {}, 0
+    media = dict(conn.execute("SELECT name, data FROM media"))
+    missing_media, lost_gaiji, bad_badges = set(), 0, set()
     t0 = time.perf_counter()
     for eid, blob in conn.execute("SELECT id, body FROM dict_entry"):
         text = dctx.decompress(blob).decode("utf-8")
@@ -94,11 +96,26 @@ def check_pack(core, dict_id):
         for href in re.findall(r'<a href="#(\d+)"', text):
             if int(href) not in ids:
                 bad_links += 1
+        # Gaiji: every picture is in the pack; none was turned into a placeholder label.
+        missing_media.update(n for n in re.findall(r'<img src="([^"]+)">', text) if n not in media)
+        lost_gaiji += text.count("［〓］") + text.count("［3分の2］")
+        # Number badges hold one label: 一-二十 in boxes, 1-99 in circles.
+        bad_badges.update(re.findall(r'<span class="(?:box-b|box-w|num-c)">((?:(?!</span>).)*)</span>', text))
     per_entry_us = (time.perf_counter() - t0) / n * 1e6
     if bad_tags:
         fail(f"{dict_id}: unexpected markup {dict(list(bad_tags.items())[:10])}")
     if bad_links:
         fail(f"{dict_id}: {bad_links} links to missing entries")
+    if missing_media:
+        fail(f"{dict_id}: pictures missing from the media table: {sorted(missing_media)[:10]}")
+    bad_badges = {b for b in bad_badges if not re.fullmatch(r"[1-9][0-9]?|[一二三四五六七八九十]{1,3}", b)}
+    if bad_badges:
+        fail(f"{dict_id}: number badges with unexpected labels: {sorted(bad_badges)[:10]}")
+    if lost_gaiji:
+        fail(f"{dict_id}: {lost_gaiji} gaiji shown as a placeholder label")
+    bad_images = [n for n, b in media.items() if not (b.startswith(b"\x89PNG") or b.startswith(b"GIF8"))]
+    if bad_images:
+        fail(f"{dict_id}: media that is not PNG or GIF: {bad_images[:10]}")
 
     for d, head, reading, want in ALIGN:
         if d != dict_id:
@@ -118,6 +135,7 @@ def check_pack(core, dict_id):
         "SELECT count(*) FROM core.entry e WHERE e.freq < 99 AND EXISTS "
         "(SELECT 1 FROM dict_link l WHERE l.core_id = e.id)").fetchone()[0]
     size = (paths.DATAPACKS / f"dict_{dict_id}.db").stat().st_size / 1e6
+    print(f"{dict_id}: gaiji pictures {len(media)} ({sum(map(len, media.values())) / 1e3:.1f} KB)")
     print(f"{dict_id}: {n} entries, {size:.1f} MB, common JMdict words covered "
           f"{covered}/{common} = {covered / common:.1%}, decompress+scan {per_entry_us:.0f} µs/entry")
 

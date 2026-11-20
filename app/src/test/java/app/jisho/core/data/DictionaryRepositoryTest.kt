@@ -172,4 +172,21 @@ class DictionaryRepositoryTest {
         repo.reopen()
         assertNotNull(repo.entry(1358280))
     }
+
+    /** Dictionary settings: entries follow the user's order; a turned-off dictionary disappears everywhere. */
+    @Test fun dictionaryOrderAndOnOff() = runBlocking {
+        var prefs = DictPrefs(order = listOf("shinmeikai8", "daijisen"))
+        val r = DictionaryRepository(TestPacks.opener(), prefs = { prefs })
+        // Named ones first in the given order, the rest after them in default order.
+        assertEquals(listOf("shinmeikai8", "daijisen", "meikyo3"), r.entry(1358280)!!.definitions.map { it.first.id })
+        assertEquals(listOf("shinmeikai8", "daijisen", "meikyo3"), r.dictionaries(prefs).map { it.info.id })
+
+        prefs = DictPrefs(disabled = setOf("daijisen"))
+        assertEquals(listOf("meikyo3", "shinmeikai8"), r.entry(1358280)!!.definitions.map { it.first.id })
+        assertEquals(listOf(false, true, true), r.dictionaries(prefs).map { it.enabled }) // default order
+        // Daijisen-only items (浜寺) are no longer offered.
+        assertTrue(r.search("はまでら").dictOnly.none { it.dictId == "daijisen" })
+        // A link inside daijisen still opens.
+        assertNotNull(r.dictEntry("daijisen", 1))
+    }
 }

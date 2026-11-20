@@ -45,4 +45,11 @@ data class CoreEntry(
     val isCommon: Boolean get() = freq < 99
 }
 
-data class DictEntry(val dictId: String, val id: Long, val title: String, val body: String)
+/** [images]: gaiji pictures the body refers to (<img src="NAME">), as PNG or GIF bytes. */
+data class DictEntry(
+    val dictId: String,
+    val id: Long,
+    val title: String,
+    val body: String,
+    val images: Map<String, ByteArray> = emptyMap(),
+)

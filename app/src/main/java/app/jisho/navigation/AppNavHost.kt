@@ -88,8 +88,19 @@ private inline fun <reified VM : ViewModel> appViewModel(key: String? = null, no
     viewModel(key = key, factory = viewModelFactory { initializer(create) })
 
 @Composable
-fun AppNavHost(packsReady: Boolean, initialQuery: String = "", openDictEntry: String? = null) {
+fun AppNavHost(
+    packsReady: Boolean,
+    initialQuery: String = "",
+    openDictEntry: String? = null,
+    openSettings: Boolean = false,
+    openBadgeSamples: Boolean = false,
+) {
+    if (openBadgeSamples) { app.jisho.feature.settings.BadgeSamples(); return }
     val nav = rememberNavController()
+    // Debug: `--es tab settings` opens the settings page (the search field's keyboard covers the bottom bar).
+    androidx.compose.runtime.LaunchedEffect(openSettings) {
+        if (openSettings && packsReady) nav.navigate(Routes.SETTINGS) { launchSingleTop = true }
+    }
     // Debug: "meikyo3:51920" opens that dictionary entry on top of the search screen.
     androidx.compose.runtime.LaunchedEffect(openDictEntry) {
         val (d, id) = openDictEntry?.split(':')?.takeIf { it.size == 2 } ?: return@LaunchedEffect
@@ -113,7 +124,7 @@ fun AppNavHost(packsReady: Boolean, initialQuery: String = "", openDictEntry: St
         composable(Routes.SEARCH) {
             TopLevel(nav, Routes.SEARCH) {
                 SearchScreen(
-                    viewModel = appViewModel { SearchViewModel(app.repository, initialQuery, refresh = app.lemmatizerVersion) },
+                    viewModel = appViewModel { SearchViewModel(app.repository, initialQuery, refresh = app.resultsVersion) },
                     handwriting = appViewModel {
                         val settings = app.settings
                         HandwritingViewModel(HandwritingRecognizer(), object : InkModelMemory {
@@ -129,7 +140,7 @@ fun AppNavHost(packsReady: Boolean, initialQuery: String = "", openDictEntry: St
         }
         composable(Routes.SETTINGS) {
             TopLevel(nav, Routes.SETTINGS) {
-                SettingsScreen(appViewModel { SettingsViewModel(app.settings) })
+                SettingsScreen(appViewModel { SettingsViewModel(app.settings, app.repository) }) { nav.navigate(Routes.IMPORT) }
             }
         }
         val entryCallbacks: @Composable (EntryTarget, String) -> Unit = { target, key ->

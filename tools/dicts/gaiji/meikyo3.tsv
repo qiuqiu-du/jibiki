@@ -1,0 +1,61 @@
+# 明鏡国語辞典 第三版: gaiji pictures that text can replace exactly (see tools/lib/gaiji.py).
+# name	markup	note. The source gives every section number the wrong alt text 3分の2.
+bs一.svg	<span class="box-b">一</span>	black-box section number 一: drawn by the app
+ws一.svg	<span class="box-w">一</span>	white-box section number 一: drawn by the app
+#ws一.svg	<span class="box-w">一</span>	white-box section number 一: drawn by the app
+bs二.svg	<span class="box-b">二</span>	black-box section number 二: drawn by the app
+ws二.svg	<span class="box-w">二</span>	white-box section number 二: drawn by the app
+#ws二.svg	<span class="box-w">二</span>	white-box section number 二: drawn by the app
+bs三.svg	<span class="box-b">三</span>	black-box section number 三: drawn by the app
+ws三.svg	<span class="box-w">三</span>	white-box section number 三: drawn by the app
+#ws三.svg	<span class="box-w">三</span>	white-box section number 三: drawn by the app
+bs四.svg	<span class="box-b">四</span>	black-box section number 四: drawn by the app
+ws四.svg	<span class="box-w">四</span>	white-box section number 四: drawn by the app
+#ws四.svg	<span class="box-w">四</span>	white-box section number 四: drawn by the app
+circle21.svg	<span class="num-c">21</span>	sense number 21: drawn by the app, like ❶-⓴ in the text
+circle22.svg	<span class="num-c">22</span>	sense number 22: drawn by the app, like ❶-⓴ in the text
+circle23.svg	<span class="num-c">23</span>	sense number 23: drawn by the app, like ❶-⓴ in the text
+circle24.svg	<span class="num-c">24</span>	sense number 24: drawn by the app, like ❶-⓴ in the text
+circle25.svg	<span class="num-c">25</span>	sense number 25: drawn by the app, like ❶-⓴ in the text
+circle26.svg	<span class="num-c">26</span>	sense number 26: drawn by the app, like ❶-⓴ in the text
+circle27.svg	<span class="num-c">27</span>	sense number 27: drawn by the app, like ❶-⓴ in the text
+circle28.svg	<span class="num-c">28</span>	sense number 28: drawn by the app, like ❶-⓴ in the text
+circle29.svg	<span class="num-c">29</span>	sense number 29: drawn by the app, like ❶-⓴ in the text
+circle30.svg	<span class="num-c">30</span>	sense number 30: drawn by the app, like ❶-⓴ in the text
+circle31.svg	<span class="num-c">31</span>	sense number 31: drawn by the app, like ❶-⓴ in the text
+circle32.svg	<span class="num-c">32</span>	sense number 32: drawn by the app, like ❶-⓴ in the text
+circle33.svg	<span class="num-c">33</span>	sense number 33: drawn by the app, like ❶-⓴ in the text
+circle34.svg	<span class="num-c">34</span>	sense number 34: drawn by the app, like ❶-⓴ in the text
+circle35.svg	<span class="num-c">35</span>	sense number 35: drawn by the app, like ❶-⓴ in the text
+circle36.svg	<span class="num-c">36</span>	sense number 36: drawn by the app, like ❶-⓴ in the text
+circle37.svg	<span class="num-c">37</span>	sense number 37: drawn by the app, like ❶-⓴ in the text
+circle38.svg	<span class="num-c">38</span>	sense number 38: drawn by the app, like ❶-⓴ in the text
+circle39.svg	<span class="num-c">39</span>	sense number 39: drawn by the app, like ❶-⓴ in the text
+circle40.svg	<span class="num-c">40</span>	sense number 40: drawn by the app, like ❶-⓴ in the text
+circle41.svg	<span class="num-c">41</span>	sense number 41: drawn by the app, like ❶-⓴ in the text
+circle42.svg	<span class="num-c">42</span>	sense number 42: drawn by the app, like ❶-⓴ in the text
+circle43.svg	<span class="num-c">43</span>	sense number 43: drawn by the app, like ❶-⓴ in the text
+circle44.svg	<span class="num-c">44</span>	sense number 44: drawn by the app, like ❶-⓴ in the text
+circle45.svg	<span class="num-c">45</span>	sense number 45: drawn by the app, like ❶-⓴ in the text
+circle46.svg	<span class="num-c">46</span>	sense number 46: drawn by the app, like ❶-⓴ in the text
+circle47.svg	<span class="num-c">47</span>	sense number 47: drawn by the app, like ❶-⓴ in the text
+circle48.svg	<span class="num-c">48</span>	sense number 48: drawn by the app, like ❶-⓴ in the text
+circle49.svg	<span class="num-c">49</span>	sense number 49: drawn by the app, like ❶-⓴ in the text
+circle50.svg	<span class="num-c">50</span>	sense number 50: drawn by the app, like ❶-⓴ in the text
+triangle.svg	▼	marker in つかい方 notes
+注意.svg		icon in front of the word 注意, which follows as text
+frac13.svg	1/3	fraction
+frac14.svg	1/4	fraction
+frac17.svg	1/7	fraction
+frac23.svg	2/3	fraction
+frac29.svg	2/9	fraction
+frac46.svg	4/6	fraction (picture: 4 over 6; alt text says 4分の6)
+fracab.svg	a/b	fraction
+00a8.svg	√2	square root of 2
+b004.svg	√-1	square root of -1
+circle51.svg	<span class="num-c">51</span>	sense number 51: drawn by the app
+circle52.svg	<span class="num-c">52</span>	sense number 52: drawn by the app
+circle53.svg	<span class="num-c">53</span>	sense number 53: drawn by the app
+circle54.svg	<span class="num-c">54</span>	sense number 54: drawn by the app
+circle55.svg	<span class="num-c">55</span>	sense number 55: drawn by the app
+circle56.svg	<span class="num-c">56</span>	sense number 56: drawn by the app

@@ -36,9 +36,9 @@ val JapaneseLocale = LocaleList("ja")
 fun TextStyle.ja(): TextStyle = copy(localeList = JapaneseLocale)
 
 @Composable
-fun JishoTheme(content: @Composable () -> Unit) {
+fun JishoTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) Dark else Light,
+        colorScheme = if (dark) Dark else Light,
         typography = Typography(),
         content = content,
     )

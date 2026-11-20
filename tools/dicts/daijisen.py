@@ -4,10 +4,13 @@ import re
 
 import paths
 from dicts.base import Adapter, SourceEntry
+from lib.gaiji import Gaiji
 from lib.markup import DROP, UNWRAP, emit
 from lib.textnorm import kata_to_hira, search_key, split_spellings, has_japanese
+from readers.mdd_reader import read_folder
 from readers.mdx_reader import read_mdx
 
+GAIJI = Gaiji("daijisen", lambda: read_folder(paths.DAIJISEN.with_suffix(".mdd"), "gaiji"))
 _KEEP = {"b": "b", "i": "i", "sup": "sup", "sub": "sub"}
 
 
@@ -25,7 +28,7 @@ def rule(tag, a):
         return emit("a", href=a.get("href", "")) if a.get("href") else UNWRAP
     if tag == "img":
         if "gaiji" in cls:
-            return emit("img", src="daijisen/" + a.get("src", "").split("/")[-1])
+            return GAIJI.action(a.get("src", ""))
         return DROP
     if tag == "br" or tag == "tr":
         return emit("br") if tag == "br" else emit("p")
@@ -61,14 +64,15 @@ def load() -> Adapter:
     entries = []
     for key, body in mdx.records:
         m = re.search(r"<h3>(.*?)</h3>", body, re.S)
-        title = html.unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip() if m else key
+        head = re.sub(r'<img[^>]*src="([^"]*)"[^>]*>', lambda g: GAIJI.text(g.group(1)), m.group(1)) if m else ""
+        title = html.unescape(re.sub(r"<[^>]+>", "", head)).strip() if m else key
         # The record key (あいとう【哀悼】) is cleaner than the printed title.
         reading, spellings = parse_title(key if "【" in key else title)
         if not reading:
             reading = parse_title(title)[0]
         entries.append(SourceEntry(key, title, reading, spellings, body))
     _attach_aliases(entries, mdx.links)
-    return Adapter("daijisen", "デジタル大辞泉", mdx.header.get("Title", ""), entries, rule, link_target)
+    return Adapter("daijisen", "デジタル大辞泉", mdx.header.get("Title", ""), entries, rule, link_target, GAIJI)
 
 
 def _attach_aliases(entries, links):

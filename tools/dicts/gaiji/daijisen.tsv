@@ -1,0 +1,27 @@
+# デジタル大辞泉: gaiji pictures that text can replace exactly (see tools/lib/gaiji.py).
+# name	markup	note. Pictures not listed stay images in the pack.
+02531.gif	<span class="box-w">一</span>	white-box section number 一: drawn by the app (Badges.kt)
+02532.gif	<span class="box-w">二</span>	white-box section number 二: drawn by the app (Badges.kt)
+02533.gif	<span class="box-w">三</span>	white-box section number 三: drawn by the app (Badges.kt)
+02534.gif	<span class="box-w">四</span>	white-box section number 四: drawn by the app (Badges.kt)
+02535.gif	<span class="box-w">五</span>	white-box section number 五: drawn by the app (Badges.kt)
+02536.gif	<span class="box-w">六</span>	white-box section number 六: drawn by the app (Badges.kt)
+02537.gif	<span class="box-w">七</span>	white-box section number 七: drawn by the app (Badges.kt)
+02538.gif	<span class="box-w">八</span>	white-box section number 八: drawn by the app (Badges.kt)
+02539.gif	<span class="box-b">一</span>	black-box section number 一: drawn by the app (Badges.kt)
+02540.gif	<span class="box-b">二</span>	black-box section number 二: drawn by the app (Badges.kt)
+02541.gif	<span class="box-b">三</span>	black-box section number 三: drawn by the app (Badges.kt)
+02542.gif	<span class="box-b">四</span>	black-box section number 四: drawn by the app (Badges.kt)
+02543.gif	<span class="box-b">五</span>	black-box section number 五: drawn by the app (Badges.kt)
+02544.gif	<span class="box-b">六</span>	black-box section number 六: drawn by the app (Badges.kt)
+02503.gif	¢	cent sign
+02569.gif	ü	u with diaeresis
+03066.gif	ň	n with caron
+02573.gif	カ゚	nasal ga (katakana + handakuten)
+02574.gif	ケ゚	nasal ge (katakana + handakuten)
+00112.gif	√2	square root of 2
+00476.gif	√a	square root of a
+00799.gif	⚊	yang line
+00768.gif	⚋	yin line
+00814.gif	☰	trigram 乾
+01853.gif	芸	うん (芸亭); the picture shows the split-grass form of the same code point; also needed in the title

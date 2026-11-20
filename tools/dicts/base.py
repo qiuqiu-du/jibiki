@@ -22,3 +22,5 @@ class Adapter:
     entries: list[SourceEntry]
     rule: Rule
     link_target: callable    # raw href -> raw key in the source, or None to unwrap
+    gaiji: object = None     # lib.gaiji.Gaiji: pictures kept as images go into the pack
+    post: callable = None    # body markup -> body markup, applied after conversion

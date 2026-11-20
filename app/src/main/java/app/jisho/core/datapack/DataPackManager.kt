@@ -18,7 +18,9 @@ class DataPackManager(private val context: Context) : PackOpener {
     val dir: File = File(context.filesDir, "datapacks").apply { mkdirs() }
     val coreFile: File get() = File(dir, CORE)
 
-    fun isReady(): Boolean = coreFile.exists() && schemaVersion(coreFile) == CORE_SCHEMA_VERSION
+    /** core.db is current and no dictionary pack is outdated (otherwise the import page shows). */
+    fun isReady(): Boolean =
+        coreFile.exists() && schemaVersion(coreFile) == CORE_SCHEMA_VERSION && outdatedDictionaries().isEmpty()
 
     fun dictionaryFiles(): List<File> {
         val files = dir.listFiles { f -> f.name.startsWith("dict_") && f.name.endsWith(".db") }.orEmpty()
@@ -27,8 +29,14 @@ class DataPackManager(private val context: Context) : PackOpener {
 
     override fun openCore() = CoreDb(AndroidSqlDb(coreFile))
 
+    /** Packs built for an older schema are skipped (re-import them); see [outdatedDictionaries]. */
     override fun openDictionaries() =
         dictionaryFiles().map { DictDb(AndroidSqlDb(it), it.nameWithoutExtension.removePrefix("dict_")) }
+            .filter { d -> (d.schemaVersion == DICT_SCHEMA_VERSION).also { ok -> if (!ok) d.close() } }
+
+    /** Dictionary packs that need re-importing because their schema is older than the app's. */
+    fun outdatedDictionaries(): List<String> =
+        dictionaryFiles().filter { schemaVersion(it) != DICT_SCHEMA_VERSION }.map { it.name }
 
     sealed interface Progress {
         data class Copying(val name: String, val index: Int, val total: Int) : Progress
@@ -82,9 +90,9 @@ class DataPackManager(private val context: Context) : PackOpener {
     companion object {
         const val CORE = "core.db"
         const val CORE_SCHEMA_VERSION = 4
-        const val DICT_SCHEMA_VERSION = 1
+        const val DICT_SCHEMA_VERSION = 2
 
-        /** Default display order until dictionary management (M3) exists. */
+        /** Default display order; the user's order (settings) comes first. */
         private val ORDER = listOf("dict_daijisen.db", "dict_meikyo3.db", "dict_shinmeikai8.db")
     }
 }

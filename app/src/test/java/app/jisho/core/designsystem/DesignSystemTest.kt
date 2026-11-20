@@ -38,7 +38,26 @@ class DesignSystemTest {
         assertEquals("a\nb", render("a<br>b<br>").text)
     }
 
-    @Test fun gaijiImagesBecomePlaceholders() = assertEquals("x〓y", render("x<img src=\"daijisen/a.gif\">y").text)
+    /** A gaiji picture is an inline-content slot named after it; its fallback text is 〓. */
+    @Test fun gaijiImagesBecomeInlineContent() {
+        val out = render("x<img src=\"a.gif\">y")
+        assertEquals("x〓y", out.text)
+        val slot = out.getStringAnnotations("androidx.compose.foundation.text.inlineContent", 0, out.length).single()
+        assertEquals(GAIJI_PREFIX + "a.gif", slot.item)
+        assertEquals(1, slot.start)
+    }
+
+    /** Number badges are inline-content slots named by class and label; plain fallbacks keep the meaning. */
+    @Test fun numberBadgesBecomeInlineContent() {
+        val out = render("<span class=\"box-b\">一</span>名<span class=\"num-c\">21</span>x")
+        assertEquals("［一］名(21)x", out.text)
+        val ids = out.getStringAnnotations("androidx.compose.foundation.text.inlineContent", 0, out.length).map { it.item }
+        assertEquals(listOf(BADGE_PREFIX + "box-b:一", BADGE_PREFIX + "num-c:21"), ids)
+    }
+
+    /** Source indentation before a block is dropped; spaces inside a line are kept. */
+    @Test fun lineStartSpacesAreDropped() =
+        assertEquals("a b\n［一］c", render("a b<p>  ［一］c</p>").text)
 
     @Test fun spansKeepTextAndStyleIt() {
         val s = render("<span class=\"sense\">1</span> <span class=\"ex\">「例」</span>")

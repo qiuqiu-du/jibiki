@@ -1,0 +1,8 @@
+# 新明解国語辞典 第八版: gaiji pictures replaced by text (see tools/lib/gaiji.py).
+# Other pictures carry a title with their text; only 〓-titled ones stay images.
+一-fill.svg	<span class="box-b">一</span>	black-box section number 一: drawn by the app
+二-fill.svg	<span class="box-b">二</span>	black-box section number 二: drawn by the app
+三-fill.svg	<span class="box-b">三</span>	black-box section number 三: drawn by the app
+四-fill.svg	<span class="box-b">四</span>	black-box section number 四: drawn by the app
+五-fill.svg	<span class="box-b">五</span>	black-box section number 五: drawn by the app
+六-fill.svg	<span class="box-b">六</span>	black-box section number 六: drawn by the app

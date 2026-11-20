@@ -1,6 +1,7 @@
 package app.jisho
 
 import android.app.Application
+import app.jisho.core.data.DictPrefs
 import app.jisho.core.data.DictionaryRepository
 import app.jisho.core.data.SettingsRepository
 import app.jisho.core.datapack.DataPackManager
@@ -26,10 +27,11 @@ class JishoApp : Application() {
     val kuromoji = KuromojiHolder()
 
     @Volatile private var lemmatizerMode = LemmatizerMode.Kuromoji
+    @Volatile private var dictPrefs = DictPrefs()
 
-    /** Changes when search results may differ: the setting changed or Kuromoji finished loading. */
-    private val _lemmatizerVersion = MutableStateFlow(0)
-    val lemmatizerVersion: StateFlow<Int> = _lemmatizerVersion
+    /** Changes when search results may differ: a setting changed or Kuromoji finished loading. */
+    private val _resultsVersion = MutableStateFlow(0)
+    val resultsVersion: StateFlow<Int> = _resultsVersion
 
     val rules by lazy {
         RuleLemmatizer(RuleLemmatizer.parse(assets.open(RULES_ASSET).bufferedReader().use { it.readText() }))
@@ -41,6 +43,7 @@ class JishoApp : Application() {
             dataPacks,
             lemmatizer = { currentLemmatizer() },
             segmenter = { if (lemmatizerMode == LemmatizerMode.Kuromoji) kuromoji.lemmatizer else null },
+            prefs = { dictPrefs },
         )
     }
 
@@ -52,12 +55,15 @@ class JishoApp : Application() {
         // Follow the setting; Kuromoji (about a second to build) loads in the background,
         // and mode A uses the rule table alone until it is ready.
         appScope.launch {
+            settings.dictPrefs.collect { dictPrefs = it; _resultsVersion.update { v -> v + 1 } }
+        }
+        appScope.launch {
             settings.lemmatizerMode.collect { mode ->
                 lemmatizerMode = mode
-                _lemmatizerVersion.update { it + 1 }
+                _resultsVersion.update { it + 1 }
                 if (mode == LemmatizerMode.Kuromoji && kuromoji.lemmatizer == null) {
                     kuromoji.load()
-                    _lemmatizerVersion.update { it + 1 }
+                    _resultsVersion.update { it + 1 }
                 }
             }
         }

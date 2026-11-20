@@ -2,13 +2,21 @@
 import html
 import json
 import urllib.parse
+import zipfile
 
 import paths
 from dicts.base import Adapter, SourceEntry
+from lib.gaiji import Gaiji
 from lib.markup import DROP, UNWRAP, emit, text
 from lib.textnorm import has_japanese, is_kana, kata_to_hira
 from readers.yomitan_reader import read_grouped, read_index
 
+def _svg_files():
+    with zipfile.ZipFile(paths.SHINMEIKAI8) as z:
+        return {n.split("/")[-1]: z.read(n) for n in z.namelist() if n.endswith(".svg")}
+
+
+GAIJI = Gaiji("shinmeikai8", _svg_files)
 _SENSE = {"語義番号", "大語義番号"}
 _POS = {"品詞M", "品詞G", "品詞用法"}
 _DROP = {"見出部", "表外字マーク", "表外音訓マーク"}
@@ -40,6 +48,7 @@ def to_html(node) -> str:
         attrs["href"] = node.get("href", "")
     if tag == "img":
         attrs["title"] = node.get("title", "")
+        attrs["src"] = node.get("path", "")
         return "<img" + "".join(f' {k}="{html.escape(v)}"' for k, v in attrs.items()) + ">"
     if tag == "br":
         return "<br>"
@@ -55,6 +64,8 @@ def _text(node) -> str:
     if isinstance(node, dict):
         if node.get("tag") == "rt":
             return ""
+        if node.get("tag") == "img":  # a gaiji in the headword
+            return node.get("title") or "〓"
         return _text(node.get("content", ""))
     return ""
 
@@ -94,7 +105,11 @@ def rule(tag, a):
         return emit("a", href=a.get("href", ""))
     if tag == "img":
         t = a.get("title", "")
-        return text(f"［{t}］") if t else DROP
+        src = a.get("src", "")
+        if src.split("/")[-1] in GAIJI.table or not t or t == "〓":
+            return GAIJI.action(src)
+        # Pictures in gaiji/ are characters (抛, √2), the others labels (表記, かぞえ方).
+        return text(t if "/gaiji/" in src else f"［{t}］")
     if tag == "br":
         return emit("br")
     if a.get("data-bold"):
@@ -126,4 +141,4 @@ def load() -> Adapter:
         body = to_html(first.content)
         aliases = list(dict.fromkeys(t.term for t in group))
         entries.append(SourceEntry(str(first.sequence), title, reading, spellings, body, aliases))
-    return Adapter("shinmeikai8", index.get("title", ""), index.get("revision", ""), entries, rule, link_target)
+    return Adapter("shinmeikai8", index.get("title", ""), index.get("revision", ""), entries, rule, link_target, GAIJI)

@@ -1,6 +1,22 @@
 package app.jisho.feature.entry
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,17 +24,21 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +65,8 @@ import app.jisho.core.designsystem.BodyColors
 import app.jisho.core.designsystem.formatAccent
 import app.jisho.core.designsystem.ja
 import app.jisho.core.designsystem.renderBody
+import app.jisho.core.designsystem.gaijiContent
+import app.jisho.core.designsystem.badgeContent
 import app.jisho.core.designsystem.DefaultLabelStyle
 import app.jisho.DebugOptions
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -99,7 +121,6 @@ class EntryViewModel(private val repository: DictionaryRepository, target: Entry
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EntryScreen(
     viewModel: EntryViewModel,
@@ -109,16 +130,79 @@ fun EntryScreen(
     onOpenEntry: (Candidate) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = { TextButton(onClick = onBack) { Text(stringResource(R.string.entry_back)) } },
+    val query = webQuery(state)
+    val webViews = rememberWebViews()
+    if (query != null) WarmUpWebView()
+    // Offline, コトバンク, Weblio side by side: swipe sideways or tap the floating tabs.
+    val pager = rememberPagerState { EntryTab.entries.size }
+    val scope = rememberCoroutineScope()
+    // The floating tabs step aside while reading down, and come back on scrolling up.
+    var tabsShown by remember { mutableStateOf(true) }
+    val hideOnScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -SCROLL_SLOP) tabsShown = false else if (available.y > SCROLL_SLOP) tabsShown = true
+                return Offset.Zero
+            }
+        }
+    }
+    LaunchedEffect(pager.currentPage) { tabsShown = true }
+    webViews.onScroll = { down -> tabsShown = !down }
+    Scaffold(topBar = { EntryTopBar(onBack) }) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding).nestedScroll(hideOnScroll).pageSwipe(pager, query != null)) {
+            HorizontalPager(pager, Modifier.fillMaxSize(), userScrollEnabled = false) { page ->
+                val tab = EntryTab.entries[page]
+                if (tab == EntryTab.Offline || query == null) {
+                    OfflineContent(state, onOpenDictEntry, onLookup, onOpenEntry, bottomSpace = if (query != null) 72.dp else 0.dp)
+                } else {
+                    // A site loads once its page is settled on (not while swiping past it).
+                    WebPage(tab, query, webViews, open = pager.settledPage == page)
+                }
+            }
+            if (query != null) {
+                AnimatedVisibility(
+                    tabsShown,
+                    Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                    enter = slideInVertically { it } + fadeIn(),
+                    exit = slideOutVertically { it } + fadeOut(),
+                ) {
+                    FloatingTabs(EntryTab.entries[pager.currentPage]) { scope.launch { pager.animateScrollToPage(it.ordinal) } }
+                }
+            }
+        }
+    }
+}
+
+private const val SCROLL_SLOP = 2f
+
+/** Top row: back on the left, the favorite star on the right (favorites come in M4). */
+@Composable
+private fun EntryTopBar(onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth().statusBarsPadding().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                contentDescription = stringResource(R.string.entry_back),
+                modifier = Modifier.size(30.dp),
             )
-        },
-    ) { padding ->
+        }
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = {}, enabled = false) { // reserved: favorites (M4)
+            Icon(StarOutline, contentDescription = stringResource(R.string.entry_favorite))
+        }
+    }
+}
+
+@Composable
+private fun OfflineContent(
+    state: EntryUiState,
+    onOpenDictEntry: (String, Long) -> Unit,
+    onLookup: (String) -> Unit,
+    onOpenEntry: (Candidate) -> Unit,
+    bottomSpace: Dp = 0.dp,
+) {
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -144,8 +228,15 @@ fun EntryScreen(
                     followLink(s.dict.id, href, onOpenDictEntry, onLookup)
                 }
             }
+            Spacer(Modifier.height(bottomSpace)) // room for the floating tabs
         }
-    }
+}
+
+/** The spellings the web tabs try, best first (see [webSpellings]); null: no web tabs. */
+private fun webQuery(state: EntryUiState): List<String>? = when (state) {
+    is EntryUiState.Word -> webSpellings(state.core.headword, state.core.forms.map { it.kanji to it.reading })
+    is EntryUiState.Single -> listOfNotNull(titleWord(state.entry.title), titleReading(state.entry.title)).distinct()
+    else -> null
 }
 
 private fun followLink(dictId: String, href: String, onOpenDictEntry: (String, Long) -> Unit, onLookup: (String) -> Unit) {
@@ -260,9 +351,10 @@ private fun DictSection(dict: DictInfo, entries: List<DictEntry>, initiallyExpan
                 ) {
                     entries.forEach { entry ->
                         val body = remember(entry.id, colors, labelStyle) { renderBody(entry.body, colors, labelStyle, onLink) }
+                        val inline = remember(entry.id, body) { gaijiContent(entry.images) + badgeContent(body) }
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(entry.title, style = MaterialTheme.typography.titleMedium.ja(), fontWeight = FontWeight.SemiBold)
-                            Text(body, style = MaterialTheme.typography.bodyLarge.ja())
+                            Text(body, style = MaterialTheme.typography.bodyLarge.ja(), inlineContent = inline)
                         }
                     }
                 }

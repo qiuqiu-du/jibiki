@@ -1,5 +1,6 @@
 package app.jisho.core.designsystem
 
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -28,6 +29,9 @@ enum class LabelStyle { SmallBold, Accent, Tinted, Bracket }
  */
 val DefaultLabelStyle = LabelStyle.Bracket
 
+/** Inline content ids of gaiji pictures start with this, followed by the picture's name. */
+const val GAIJI_PREFIX = "gaiji:"
+
 /**
  * Renders body markup (Architecture.md §9, body_format 1) into an AnnotatedString.
  * Ruby readings (<rt>) are hidden in this version; links call [onLink] with the raw href.
@@ -44,6 +48,7 @@ fun renderBody(
         val open = ArrayDeque<Pair<String, Boolean>>() // tag name, pushed a style/link
         val closingText = ArrayDeque<String>() // text appended when a bracketed label closes
         var hidden = 0
+        var badge: Pair<String, StringBuilder>? = null // class and text of an open number badge
         var pos = 0
         var last = '\n' // last appended char; '\n' at start so no leading blank line
 
@@ -58,7 +63,9 @@ fun renderBody(
 
         fun text(raw: String) {
             if (hidden > 0 || raw.isEmpty()) return
-            put(unescape(raw))
+            badge?.let { it.second.append(unescape(raw.trim())); return }
+            // Source indentation (spaces before a block) is not part of the text.
+            put(unescape(if (last == '\n') raw.trimStart(' ', '\t') else raw))
         }
 
         for (m in tag.findAll(markup)) {
@@ -73,22 +80,32 @@ fun renderBody(
                 while (open.isNotEmpty()) {
                     val (n, pushed) = open.removeLast()
                     if (n == "label") put(closingText.removeLast())
+                    if (n == "badge") badge?.let { (cls, t) ->
+                        badge = null
+                        appendInlineContent(BADGE_PREFIX + cls + ":" + t, badgeFallback(cls, t.toString()))
+                        last = '\u0000'
+                    }
                     if (pushed) pop()
-                    if (n == name || n == "label" && name == "span") break
+                    if (n == name || (n == "label" || n == "badge") && name == "span") break
                 }
                 continue
             }
             val attrs = attr.findAll(m.groupValues[3]).associate { it.groupValues[1] to it.groupValues[2] }
             when (name) {
                 "br" -> put("\n")
-                "img" -> put("〓") // unreplaced gaiji (handled in M3)
+                // Gaiji picture: drawn by the Text's inline content (see gaijiContent); 〓 if missing.
+                "img" -> attrs["src"]?.let { appendInlineContent(GAIJI_PREFIX + it, "〓"); last = '〓' }
                 "rt" -> hidden++
                 "p" -> { newline(); open.addLast(name to false) }
                 "b" -> { pushStyle(SpanStyle(fontWeight = FontWeight.SemiBold)); open.addLast(name to true) }
                 "i" -> { pushStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)); open.addLast(name to true) }
                 "sup" -> { pushStyle(SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 0.7.em)); open.addLast(name to true) }
                 "sub" -> { pushStyle(SpanStyle(baselineShift = BaselineShift.Subscript, fontSize = 0.7.em)); open.addLast(name to true) }
-                "span" -> if (attrs["class"] == "label") {
+                "span" -> if (attrs["class"] in BADGE_CLASSES) {
+                    // Section and sense numbers drawn by the app (see Badges.kt).
+                    badge = attrs["class"]!! to StringBuilder()
+                    open.addLast("badge" to false)
+                } else if (attrs["class"] == "label") {
                     // Labels keep the body's size and weight: a smaller or synthetic-bold CJK glyph
                     // looks like a different character next to normal text.
                     val (style, open1, close1) = when (labelStyle) {

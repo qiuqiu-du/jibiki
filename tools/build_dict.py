@@ -110,6 +110,8 @@ def main(dict_id):
         r = convert(e.source_html, adapter.rule)
         body = resolve_links(r.body, r.links, resolve)
         body = body.replace('<a href="">', "<a>")
+        if adapter.post:
+            body = adapter.post(body)
         bodies.append(body)
         images.update(r.images)
 
@@ -143,6 +145,8 @@ def main(dict_id):
     )
     conn.executemany("INSERT OR IGNORE INTO dict_key VALUES (?,?)", sorted(keys))
     conn.executemany("INSERT OR IGNORE INTO dict_link VALUES (?,?)", links)
+    media = adapter.gaiji.media() if adapter.gaiji else {}
+    conn.executemany("INSERT INTO media VALUES (?,?)", sorted(media.items()))
     write_meta(conn, {
         "schema_version": DICT_SCHEMA_VERSION,
         "body_format": BODY_FORMAT_VERSION,
@@ -156,7 +160,8 @@ def main(dict_id):
 
     raw_mb = sum(len(b) for b in encoded) / 1e6
     print(f"aligned to JMdict: {aligned}/{len(entries)} = {aligned / len(entries):.1%}")
-    print(f"links: {dict(link_stats)}; gaiji images: {sum(images.values())} ({len(images)} distinct)")
+    print(f"links: {dict(link_stats)}; gaiji images: {sum(images.values())} ({len(images)} distinct, "
+          f"{sum(map(len, media.values())) / 1e3:.1f} KB)")
     print(f"keys {len(keys)} (of {all_keys})  body markup {raw_mb:.1f} MB  pack {out.stat().st_size / 1e6:.1f} MB")
     sample = rnd.sample(range(len(entries)), 3)
     for i in sample:

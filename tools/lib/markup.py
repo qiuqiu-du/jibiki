@@ -26,7 +26,12 @@ def text(value: str) -> tuple:
     return ("text", value)
 
 
-# A rule receives (tag, attrs) and returns DROP, UNWRAP, emit(...) or text(...).
+def raw(markup: str) -> tuple:
+    """Like text(), but the value is body markup (e.g. a styled section number)."""
+    return ("raw", markup)
+
+
+# A rule receives (tag, attrs) and returns DROP, UNWRAP, emit(...), text(...) or raw(...).
 Rule = Callable[[str, dict], tuple]
 
 
@@ -85,8 +90,8 @@ class _Converter(HTMLParser):
                 self.stack.append((tag, None))
                 self.drop_depth = 1
             return
-        if kind == "text":
-            self.out.append(html.escape(action[1], quote=False))
+        if kind in ("text", "raw"):
+            self.out.append(html.escape(action[1], quote=False) if kind == "text" else action[1])
             if not void:
                 self.stack.append((tag, None))
                 self.drop_depth = 1  # replacement text stands in for the content

@@ -1,6 +1,7 @@
 package app.jisho.core.data
 
 import app.jisho.core.database.Candidate
+import app.jisho.core.designsystem.badgeFallback
 import app.jisho.core.database.CoreDb
 import app.jisho.core.database.CoreEntry
 import app.jisho.core.database.DictCandidate
@@ -34,6 +35,22 @@ data class EntryDetail(
 
 data class DictInfo(val id: String, val title: String)
 
+/**
+ * The user's dictionary settings: display order (ids; unknown ids go last in default order)
+ * and which dictionaries are turned off. Off means hidden everywhere: entries, search hints,
+ * dictionary-only results, and "has a definition" checks.
+ */
+data class DictPrefs(val order: List<String> = emptyList(), val disabled: Set<String> = emptySet())
+
+/** One imported dictionary as the settings page lists it. */
+data class DictStatus(val info: DictInfo, val enabled: Boolean)
+
+/** What the settings page needs from [DictionaryRepository]. */
+interface DictionaryList {
+    /** All imported dictionaries in [prefs]' order, with their on/off state. */
+    suspend fun dictionaries(prefs: DictPrefs): List<DictStatus>
+}
+
 /** Opens data packs; Android reads them from the app's files dir, tests from datapacks/. */
 interface PackOpener {
     fun openCore(): CoreDb
@@ -42,9 +59,10 @@ interface PackOpener {
 
 private const val HINT_LENGTH = 18
 
-/** Body markup -> plain text without ruby readings (for hints). */
+/** Body markup -> plain text without ruby readings (for hints); number badges become ［一］〔一〕(1). */
 internal fun plainText(markup: String): String =
-    markup.replace(Regex("<rt>.*?</rt>"), "").replace(Regex("<br>|</p>"), " ").replace(Regex("<[^>]+>"), "")
+    markup.replace(Regex("<rt>.*?</rt>"), "")
+        .replace(Regex("<span class=\"(box-b|box-w|num-c)\">(.*?)</span>")) { badgeFallback(it.groupValues[1], it.groupValues[2]) }.replace(Regex("<br>|</p>"), " ").replace(Regex("<[^>]+>"), "")
         .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&amp;", "&")
         .replace(Regex("\\s+"), " ").trim()
 
@@ -59,22 +77,31 @@ class DictionaryRepository(
     private val packs: PackOpener,
     private val lemmatizer: () -> Lemmatizer? = { null },
     private val segmenter: () -> Segmenter? = { null },
-) {
+    private val prefs: () -> DictPrefs = { DictPrefs() },
+) : DictionaryList {
     @Volatile private var core: CoreDb? = null
-    @Volatile private var dicts: List<DictDb> = emptyList()
+    /** Every imported dictionary, in the default order; [dicts] is what the user turned on, in their order. */
+    @Volatile private var all: List<DictDb> = emptyList()
+    private val dicts: List<DictDb> get() = arrange(all, prefs()).filter { it.dictId !in prefs().disabled }
 
     private fun ensureOpen() {
         if (core != null) return
         synchronized(this) {
             if (core != null) return
-            dicts = packs.openDictionaries()
+            all = packs.openDictionaries()
             core = packs.openCore()
         }
     }
 
     fun reopen() = synchronized(this) {
-        core?.close(); dicts.forEach { it.close() }
-        core = null; dicts = emptyList()
+        core?.close(); all.forEach { it.close() }
+        core = null; all = emptyList()
+    }
+
+    override suspend fun dictionaries(prefs: DictPrefs): List<DictStatus> = withContext(Dispatchers.IO) {
+        ensureOpen()
+        val p = prefs
+        arrange(all, p).map { DictStatus(DictInfo(it.dictId, it.title), it.dictId !in p.disabled) }
     }
 
     suspend fun search(raw: String): SearchResult = withContext(Dispatchers.IO) {
@@ -119,17 +146,18 @@ class DictionaryRepository(
     private fun distinguish(words: List<Candidate>): List<Candidate> {
         val groups = words.groupBy { it.displayKey }.filterValues { it.size > 1 }
         if (groups.isEmpty()) return words
+        val ds = dicts // one snapshot: the settings may change while this runs
         val dropped = HashSet<Long>()
         val hints = HashMap<Long, String>()
         for (group in groups.values) {
-            val links = group.associate { c -> c.entryId to dicts.map { it.linkedIds(c.entryId) } }
+            val links = group.associate { c -> c.entryId to ds.map { it.linkedIds(c.entryId) } }
             val kept = group.distinctBy { links[it.entryId] }
             group.filter { it !in kept }.forEach { dropped += it.entryId }
             if (kept.size > 1) kept.forEach { c ->
                 // Prefer a definition only this row links to, so overlapping rows get different hints.
                 val others = kept.filter { it != c }.map { links[it.entryId]!! }
                 val own = links[c.entryId]!!.mapIndexed { d, ids -> ids.filter { id -> others.none { id in it[d] } } }
-                hints[c.entryId] = hintFor(own).ifEmpty { hintFor(links[c.entryId]!!) }
+                hints[c.entryId] = hintFor(ds, own).ifEmpty { hintFor(ds, links[c.entryId]!!) }
             }
         }
         return words.filter { it.entryId !in dropped }
@@ -137,8 +165,8 @@ class DictionaryRepository(
     }
 
     /** First words of the first linked definition (plain text), or "" if none is linked. */
-    private fun hintFor(linksPerDict: List<List<Long>>): String {
-        dicts.zip(linksPerDict).forEach { (d, ids) ->
+    private fun hintFor(ds: List<DictDb>, linksPerDict: List<List<Long>>): String {
+        ds.zip(linksPerDict).forEach { (d, ids) ->
             val body = ids.firstOrNull()?.let { d.entry(it)?.body } ?: return@forEach
             val text = plainText(body).replace(Regex("^[［〔《(（【][^］〕》)）】]*[］〕》)）】]"), "").trim()
             if (text.isNotEmpty()) return text.take(HINT_LENGTH)
@@ -158,9 +186,14 @@ class DictionaryRepository(
         EntryDetail(entry, definitions, baseForms)
     }
 
+    /** One dictionary item by id; links inside a turned-off dictionary still open. */
     suspend fun dictEntry(dictId: String, id: Long): Pair<DictInfo, DictEntry>? = withContext(Dispatchers.IO) {
         ensureOpen()
-        val d = dicts.firstOrNull { it.dictId == dictId } ?: return@withContext null
+        val d = all.firstOrNull { it.dictId == dictId } ?: return@withContext null
         d.entry(id)?.let { DictInfo(d.dictId, d.title) to it }
     }
 }
+
+/** [all] sorted by [DictPrefs.order]; dictionaries it doesn't name keep their default order, after it. */
+private fun arrange(all: List<DictDb>, prefs: DictPrefs): List<DictDb> =
+    all.sortedBy { d -> prefs.order.indexOf(d.dictId).let { if (it < 0) Int.MAX_VALUE else it } }

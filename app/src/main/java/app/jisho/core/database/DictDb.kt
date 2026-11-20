@@ -40,12 +40,23 @@ class DictDb(private val db: SqlDb, fallbackId: String) : AutoCloseable {
         ) { it.long(0) }.mapNotNull { id -> entry(id)?.let { DictCandidate(dictId, id, it.title) } }
     }
 
+    /** A gaiji picture (schema 2 packs). */
+    fun media(name: String): ByteArray? =
+        db.query("SELECT data FROM media WHERE name = ?1", listOf(name)) { it.blob(0) }.firstOrNull()
+
     private fun toEntry(id: Long, blob: ByteArray): DictEntry {
         val size = Zstd.getFrameContentSize(blob)
         val text = String(Zstd.decompress(blob, zdict, size.toInt()), Charsets.UTF_8)
         val nl = text.indexOf('\n')
-        return if (nl < 0) DictEntry(dictId, id, text, "")
-        else DictEntry(dictId, id, text.substring(0, nl), text.substring(nl + 1))
+        if (nl < 0) return DictEntry(dictId, id, text, "")
+        val body = text.substring(nl + 1)
+        val images = if ("<img" !in body) emptyMap() else
+            IMG.findAll(body).map { it.groupValues[1] }.distinct().mapNotNull { n -> media(n)?.let { n to it } }.toMap()
+        return DictEntry(dictId, id, text.substring(0, nl), body, images)
+    }
+
+    private companion object {
+        val IMG = Regex("<img src=\"([^\"]+)\">")
     }
 
     override fun close() = db.close()

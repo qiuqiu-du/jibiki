@@ -49,7 +49,7 @@ dict/
 | M0 数据准备 | 三种格式的读取器，生成 core.db 和大辞泉、明鏡、新明解数据包 | ✅ 2026-11-19（数据包合计 100.1 MB） |
 | M1 能查词 | 工程搭建、数据包导入、搜索、词条页、音调 | ✅ 2026-11-20 用户验收通过（候选 p95 9.3 ms、词条 p95 3.4 ms、release APK 3.0 MB） |
 | M2 查得准 | Kuromoji 和规则表两种还原器、JMdict 校验、手写、测试集 | ✅ 2026-11-20 用户验收通过（测试集 565 条两种模式全过、候选 p95 9–14.5 ms、冷启动约 510 ms、release APK 25.9 MB） |
-| M3 释义完善 | 辞书管理、释义排版、网页页签 | ⬜ |
+| M3 释义完善 | 辞书管理、释义排版和外字、网页页签 | ✅ 2026-11-20 用户验收通过（外字无占位、编号由 App 绘制、词条 p95 1.8 ms、release APK 26.0 MB） |
 | M4 收藏完善 | 收藏夹、导出、备份恢复、历史 | ⬜ |
 
 完成一个阶段后，更新这张表和设计文档里的里程碑表格（记录 APK 大小、数据包大小、冷启动时间）。
@@ -59,7 +59,7 @@ dict/
 - **辞书**：デジタル大辞泉（主）、明鏡国語辞典 第三版（辅）、新明解国語辞典 第八版（第二辅助，可停用）、NHK アクセント新辞典 2016（音调）。大辞林第四版、小学館日中辞典放到后续版本。旧版（新明解7、大辞林3、NHK 1998）只留作对照。
 - **音调来源顺序**：NHK 2016 → 新明解第八版自带的音调数字 → Kanjium。不再解析 NHK 1998 年版的图片编码。
 - **转换脚本输入格式**：MDict、Yomitan、NHK JSON；手机端只认生成的 `.db`。
-- **只用文字**：不使用任何 .mdd 多媒体包（插图和音频）；大辞泉的外字小图片除外，需要单独提取。
+- **只用文字**：不使用 .mdd 多媒体包里的插图和音频；只从中取出外字小图片（三部辞书合计约 140 种、90 KB）。
 - **词库不打包进 APK**：首次启动时从手机存储导入数据包。
 - **体积**：APK ≤ 30 MB，数据包合计 ≤ 110 MB（M0 实测 100.1 MB）。
 - **分词器**：Kuromoji + IPADIC（默认）和活用规则表（可在设置中切换）都实现 `Lemmatizer` 接口；Sudachi 后期按需加入。所有候选都必须经过 JMdict 校验。
@@ -78,7 +78,7 @@ dict/
 - 构建：Gradle Wrapper 8.14.3、AGP 8.13.2、Kotlin 2.2.20、compileSdk / targetSdk 36、minSdk 29；只打包 arm64-v8a。
 - 已装工具：`adb`（android-platform-tools）、`scrcpy`、`gradle`（只用来生成 wrapper，平时用 `./gradlew`）。
 - 测试设备：荣耀 **PPG-AN00**，MagicOS 11 / Android 17（API 37），骁龙 SM8750，USB 调试已授权，有 Google Play 服务。
-- Python 3.14。`tools/` 的依赖：`mdict-utils`、`python-lzo`、`zstandard`。
+- Python 3.14。`tools/` 的依赖：`mdict-utils`、`python-lzo`、`zstandard`；外字 SVG 转 PNG 还要命令行工具 `rsvg-convert`（`brew install librsvg`）。
   - `python-lzo` 需要先 `brew install lzo`，然后带上编译参数安装：
     ```bash
     CFLAGS="-I$(brew --prefix)/include -I$(brew --prefix)/include/lzo" LDFLAGS="-L$(brew --prefix)/lib" pip install python-lzo
@@ -113,6 +113,8 @@ scripts/test-device.sh                           # 需要手机：真机测试 +
 ./gradlew :app:connectedDebugAndroidTest         # 真机测试：Android 运行时兼容性 + 性能（需要数据包已在 App 里）
 ./gradlew :app:assembleRelease                   # release 包（约 3 MB，用 debug 签名，只给自己装）
 adb shell am start -S -n app.jisho/.MainActivity --es q 食べる   # debug 版：启动并预填搜索词
+adb shell am start -S -n app.jisho/.MainActivity --es tab settings   # debug 版：直接打开设置页（搜索框的键盘会挡住底栏）
+adb shell am start -S -n app.jisho/.MainActivity --es tab badges     # debug 版：编号样张（方框一～二十、圆圈 1～99，浅色和深色）
 adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es labelStyle Bracket
                                                  # debug 版：直接打开某辞书词条；可切换标签样式对比截图
 ```
@@ -152,7 +154,12 @@ adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es la
 - **JMdict 的「只供检索」写法**：`ke_inf sK` / `re_inf sk`（约 1.6 万个汉字写法、5 千个假名写法）只能用来搜索，不能当词头显示，例如「居らっしゃる」只是「いらっしゃる」的检索写法。`jmdict_reader` 的 `pairs()` 只给可显示的写法，`all_pairs()` 给全部写法（辞书对齐用），`search_only_texts()` 只写进 `search_key`。辞书对齐直接读 JMdict，不读 core.db 的显示写法。
 - **JMdict 的常用度很粗**：只有 news1/ichi1 这类标记，很多词并列（基本动词常是 48，新闻名词却有细排名）。已用 `entry.score`（结合新明解 ＊＊/＊ 标记）和「通常写假名」加权解决，见 design-spec 4.1；改动以 `RankingTest` 为准。
 - **音调写法**：`pitch.accent` 可能是多个值（`0,2`）或复合词写法（`1+1`），显示时原样处理，不要当成单个整数解析。
-- **大辞泉外字**：正文里还剩 75 种外字小图片（约 1.5 万处），以 `<img src="daijisen/xxx.gif">` 形式保留，M3 时从 .mdd 里提取或换成 Unicode 字符。
+- **外字**（M3 已处理，规则见 Architecture.md 第 9 节）：
+  - 三部辞书都有外字图片：大辞泉 75 种 GIF（`.mdd` 的 `\gaiji\`），明鏡 116 种 SVG（`.mdd` 的 `\gaiji\`），新明解 142 种 SVG（zip 里的 `smk8/`）。其中 99% 是分段编号这类记号。
+  - 原辞书给的替代文字不可靠：明鏡把所有分段编号的 alt 都写成「3分の2」，生僻字的 alt 是「〓」；新明解生僻字的 title 也是「〓」。替换表在 `tools/dicts/gaiji/`，其余保留原图进 `media` 表。
+  - SVG 转 PNG 需要 `rsvg-convert`（`brew install librsvg`）。
+  - 分段编号和圆圈义项编号由 App 画（`Badges.kt`）。居中不要按字体行高，也不要按笔画外框：汉字按字体设计框居中，数字按笔画重心水平居中（这台手机的字体里数字左侧留白更多，按字位居中会整体偏右 1～3 像素）。
+  - 少数大辞泉词条的**词头本身**是外字图片（如「ささてん‐ぼだい【×〓・…】」）：标题是纯文本，只能显示 〓，正文里的图正常。
 - **手机输入法**：手机默认是拼音输入法，`adb shell input text` 打出的字母会进入拼音候选，不会直接进搜索框。验证搜索用上面的 `--es q` 启动参数。
 - **不要在手机上按返回键或乱点**：用户可能正在用手机；返回键会退出 App 把别的应用切到前台。MagicOS 每次 `adb install` 后会弹出安装安全检查页，只点「完成」，不要点里面的「一键修复」「清理」。
 - **界面交互由用户验收**：自动化验证优先用 JVM 测试和真机测试（见 Architecture.md 第 8 节），少用截图点屏。
@@ -161,7 +168,9 @@ adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es la
 - **JVM 测试通过 ≠ 手机上能跑**：Android 的正则引擎是 ICU，不支持 `(?U)` 这类桌面 Java 的写法，曾导致一输入就闪退。纯 Kotlin 代码里用到正则、`java.text`、字符集的，都要在 `DeviceRuntimeTest` 里在真机上跑一遍。
 - **真机测试默认会卸载 App**：`gradle.properties` 里已设置 `android.injected.androidTest.leaveApksInstalledAfterRun=true`，不要删，否则跑完测试导入的数据包会被清空。
 - **荣耀手机的 logcat 是加密的**（显示为 `(HKS)…(HKE)`）：查闪退用 `adb shell dumpsys dropbox --print data_app_crash`；测试数据写进 App 私有目录的文件，再用 `run-as` 读出来（`test-device.sh` 就是这么做的），不要依赖 `Log`。
-- **APK 体积已接近上限**：M2 后 release 25.9 MB（上限 30 MB），其中 Kuromoji 词典约 13 MB、手写识别原生库约 7 MB。再加依赖前先算体积。
+- **网页页签**：コトバンク 用 `/word/写法` 直接跳到词条，但它只收录部分写法（「舐める」404，「嘗める」「なめる」才有），所以 404 时依次试 `webSpellings` 给出的其他汉字写法和读音，全部 404 才开搜索页（搜索页带验证参数，必须用户点「検索」，不要用脚本代点；搜索页不隐藏顶栏，否则看不到搜索框）。两站的广告和「看广告才能继续」弹窗由 `AdBlock.kt` 屏蔽（拦截广告域名 + 隐藏广告位和弹窗）；弹窗来自 `fundingchoicesmessages.google.com`。两站和查词无关的部分（顶栏、关联词、排行、页脚等）按站点写在 `EntryTab.clutter`，同一套隐藏样式注入。验证弹窗时先清 App 的网页 Cookie（`adb shell run-as app.jisho rm -rf app_webview`），否则「已看过广告」的 24 小时记录会让弹窗本来就不出现。
+- **WebView 第一次启动很慢、深色下会白闪**：每次 App 运行后第一次创建 WebView 要在主线程上花几百毫秒，期间整个界面卡住。`WarmUpWebView` 在词条页显示 0.5 秒后提前启动；`WebPage` 先画背景和进度条，下一帧再创建 WebView。WebView 画出第一帧前是白的，所以先设 `alpha = 0`，`onPageCommitVisible` 后淡入；深色主题下开启 `isAlgorithmicDarkeningAllowed`（API 33+）让网页也变暗。词条页三个页签放在 `HorizontalPager` 里，pager 自带的滑动关掉，改用 `PageSwipe.kt` 统一判断方向（Pager 自带的只看横向位移，看不到 WebView 内部的竖向滚动，网页里稍斜的上下滑就会误切换）；灵敏度是其中的 `SWIPE_RATIO`；底部悬浮页签靠 nested scroll（离线页）和 WebView 的 `setOnScrollChangeListener`（网页）判断滚动方向来收起或显示。
+- **APK 体积已接近上限**：M3 后 release 26.0 MB（M2 25.9 MB）（上限 30 MB），其中 Kuromoji 词典约 13 MB、手写识别原生库约 7 MB。再加依赖前先算体积。
 - **Kuromoji 打包**：两个 jar 都带 `META-INF/CONTRIBUTORS.md`，已在 `packaging` 里排除；release 包靠 `proguard-rules.pro` 保留 Kuromoji 的类。
 - **手写模型**：ML Kit 的日语模型首次使用时从 Google 下载（约 20 MB），已下载后，App 每次启动后第一次打开手写面板，检查模型状态约 0.75 秒（真机实测；纯本地，不联网，时间花在 ML Kit 下载管理组件的一次性初始化；同一进程里再查只要几毫秒），第一次识别约 0.1 秒；`DevicePerformanceTest.handwritingModelLoadTimes` 会测这几个数。面板靠设置里记住的「模型已就绪」直接打开，检查在后台做（`HandwritingViewModel.checkModel`）。App 因此带有联网权限（ML Kit 自动加入），除此之外不联网。下载按钮由用户点，不要替用户点。
 - **分词器实测**：对单个词，Kuromoji 和 Sudachi 的还原结果几乎一样。但遇到歧义词，它们只给一个答案，例如「いった」「読めない」，所以需要规则表补充候选。

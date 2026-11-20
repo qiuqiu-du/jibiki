@@ -258,7 +258,7 @@ sealed interface AppResult<out T> {
 
 ## 9. 数据包规范
 
-- 每个数据包都要在 `meta` 表里记录 `schema_version`、`kind`（core / dictionary）、`built_at`；辞书包还要记录 `dict_id`、`title`、`revision`、`body_format`。App 启动时检查 `schema_version` 和 `body_format`，不匹配就提示重新导入。
+- 每个数据包都要在 `meta` 表里记录 `schema_version`、`kind`（core / dictionary）、`built_at`；辞书包还要记录 `dict_id`、`title`、`revision`、`body_format`。App 启动时检查 `schema_version` 和 `body_format`，不匹配就提示重新导入（`DataPackManager.isReady()` 发现过期的辞书包时回到导入页）。
 - 表结构以 `tools/build_core.py`（core.db）和 `tools/lib/packdb.py`（辞书包）里的 SQL 为准，`CoreDb` / `DictDb` 的查询必须和它们一致。改了表结构要同时升 `schema_version` 和 `DataPackManager` 里的期望版本。
 - **查询键规范化**（`tools/lib/textnorm.py` 的 `search_key`）：NFKC → 去掉 `・‐-=▽▼×` 等记号和空白 → 片假名转平假名。App 对用户输入必须做完全相同的处理，两边实现要一起改。
 - **正文存储**：`dict_entry.body` = zstd（标题 + 换行 + 正文标记），使用同库 `zdict` 表里的字典解压。字典在打开辞书时加载一次。
@@ -266,10 +266,12 @@ sealed interface AppResult<out T> {
   - 块：`<p>`（可嵌套，渲染时开始、结束都当换行）、`<br>`
   - 行内：`<b>` `<i>` `<sup>` `<sub>` `<ruby>…<rt>…</rt></ruby>`
   - `<span class="pos|sense|ex|label|note|mark">`：词性、义项编号、例句、标签框、注释、记号
+  - `<span class="box-b|box-w|num-c">标签</span>`：由 App 自己画的编号（`core/designsystem/Badges.kt`）。`box-b` 黑底方框、`box-w` 白底方框（标签是一～二十的汉字），`num-c` 实心圆圈（1～99）。不能画的地方（搜索提示等纯文本）退回成「［一］」「〔一〕」「(21)」。
   - `<a href="#123">` 跳到本辞书第 123 条；`<a href="?key">` 用 key 查词
-  - `<img src="daijisen/xxx.gif">`：尚未替换的外字（M3 处理）
+  - `<img src="名称">`：外字图片，图片本身存在同一辞书包的 `media` 表里（schema 2 起）。App 按名称取出，作为一个字宽、一行高的行内图片显示，并染成正文颜色（深色模式也能看清）；取不到时显示 〓。
   - 明鏡的 `<ruby>` 注音保留在数据里，第一版渲染时隐藏 `<rt>`。
   - 标签（`span.label`：類語、使い方、語源、类语分类等）渲染为灰色〔〕括起，**字号和字重与正文相同**。不要缩小或加粗正文里的汉字：系统字体没有对应字重时会合成，看起来像另一个字形。其他 span 也不改字号。
+  - **外字的处理规则**（`tools/lib/gaiji.py`）：能用文字准确表达的（分段编号、圆圈数字、普通符号）在 `tools/dicts/gaiji/<辞书>.tsv` 里逐条写明替换成什么、为什么；其余（生僻字异体、乐谱记号、图标）一律保留原图，不猜字。SVG 在电脑上用 `rsvg-convert` 转成 PNG，手机只解码 PNG 和 GIF。分段编号和圆圈义项编号不用 Unicode 近似字符，也不用原图，统一写成上面的编号标记，由 App 画（主题色；方框里的汉字按字体的设计框居中，数字按笔画重心水平居中，同类编号共用一条基线）。
   - 原辞书只在别处（例如明鏡每条开头的目录）出现的标题，转换时要补回正文：明鏡的类语段落开头补「類語」（`lib/markup.py` 的 `_label`）。
 - 数据包由 `tools/` 下的脚本生成，**生成过程必须可重复**：同样的输入，得到同样的输出。
 - `dictionaries/`、`sources/`、`datapacks/`、`tools/.venv/` 都要写进 `.gitignore`，辞书原文件和生成的数据包不提交、不外传。
