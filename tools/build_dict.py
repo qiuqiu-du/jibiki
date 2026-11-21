@@ -1,6 +1,6 @@
 """Build datapacks/dict_<id>.db for one dictionary.
 
-Usage: tools/.venv/bin/python tools/build_dict.py daijisen|meikyo3|shinmeikai8
+Usage: tools/.venv/bin/python tools/build_dict.py daijisen|meikyo3|shinmeikai8|daijirin4
 Requires datapacks/core.db (run build_core.py first) for JMdict alignment.
 """
 import collections
@@ -19,7 +19,8 @@ from lib.packdb import (BODY_FORMAT_VERSION, DICT_SCHEMA, DICT_SCHEMA_VERSION, Z
 from lib.textnorm import kata_to_hira, search_key
 from readers.jmdict_reader import read_jmdict
 
-ADAPTERS = {"daijisen": "dicts.daijisen", "meikyo3": "dicts.meikyo3", "shinmeikai8": "dicts.shinmeikai8"}
+ADAPTERS = {"daijisen": "dicts.daijisen", "meikyo3": "dicts.meikyo3", "shinmeikai8": "dicts.shinmeikai8",
+            "daijirin4": "dicts.daijirin4"}
 
 
 def load_core_keys():

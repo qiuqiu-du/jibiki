@@ -57,7 +57,7 @@ dict/
 | M2 查得准 | Kuromoji 和规则表两种还原器、JMdict 校验、手写、测试集 | ✅ 2026-11-20 用户验收通过（测试集 565 条两种模式全过、候选 p95 9–14.5 ms、冷启动约 510 ms、release APK 25.9 MB） |
 | M3 释义完善 | 辞书管理、释义排版和外字、网页页签 | ✅ 2026-11-20 用户验收通过（外字无占位、编号由 App 绘制、词条 p95 1.8 ms、release APK 26.0 MB） |
 | M4 收藏完善 | 收藏夹、导出导入、备份恢复、历史 | ✅ 2026-11-21 用户验收通过（release APK 25.0 MB；备份往返、Anki 导入已实测；MOJi 收藏 2914 词已导入；收藏夹拖动排序、左滑删除可撤销） |
-| M5 辞书扩充 | 依次加入大辞林第四版、小学館日中辞典第三版、新世纪日汉双解（顺序见 [docs/dictionaries.md](docs/dictionaries.md)） | ⏳ 未开始 |
+| M5 辞书扩充 | 依次加入大辞林第四版、小学館日中辞典第三版、新世纪日汉双解（顺序见 [docs/dictionaries.md](docs/dictionaries.md)） | ⏳ 进行中：① 大辞林4 已打包（35.6 MB），待验收 |
 
 完成一个阶段后，更新这张表和设计文档里的里程碑表格（记录 APK 大小、数据包大小、冷启动时间）。
 
@@ -103,8 +103,10 @@ tools/.venv/bin/python tools/build_core.py                 # → datapacks/core.
 tools/.venv/bin/python tools/build_dict.py daijisen        # → dict_daijisen.db（约 1 分钟）
 tools/.venv/bin/python tools/build_dict.py meikyo3
 tools/.venv/bin/python tools/build_dict.py shinmeikai8
+tools/.venv/bin/python tools/build_dict.py daijirin4       # 约 1.5 分钟
 tools/.venv/bin/python tools/tests/check_packs.py          # 音调、对齐、标签、链接抽查；失败时退出码为 1
 tools/.venv/bin/python tools/measure_sources.py daijirin4  # 加新辞书前估算体积和常用词覆盖（不写文件）
+tools/.venv/bin/python tools/inspect_source.py shogakukan-jc3/shogakukan-jc3.mdx 手間   # 看标签、class、data-name 的分布和一条原文片段
 ```
 
 设备与构建：
@@ -184,6 +186,11 @@ adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es la
 - **网页页签**：コトバンク 用 `/word/写法` 直接跳到词条，但它只收录部分写法（「舐める」404，「嘗める」「なめる」才有），所以 404 时依次试 `webSpellings` 给出的其他汉字写法和读音，全部 404 才开搜索页（搜索页带验证参数，必须用户点「検索」，不要用脚本代点；搜索页不隐藏顶栏，否则看不到搜索框）。两站的广告和「看广告才能继续」弹窗由 `AdBlock.kt` 屏蔽（拦截广告域名 + 隐藏广告位和弹窗）；弹窗来自 `fundingchoicesmessages.google.com`。两站和查词无关的部分（顶栏、关联词、排行、页脚等）按站点写在 `EntryTab.clutter`，同一套隐藏样式注入。验证弹窗时先清 App 的网页 Cookie（`adb shell run-as app.jisho rm -rf app_webview`），否则「已看过广告」的 24 小时记录会让弹窗本来就不出现。
 - **WebView 第一次启动很慢、深色下会白闪**：每次 App 运行后第一次创建 WebView 要在主线程上花几百毫秒，期间整个界面卡住。`WarmUpWebView` 在词条页显示 0.5 秒后提前启动；`WebPage` 先画背景和进度条，下一帧再创建 WebView。WebView 画出第一帧前是白的，所以先设 `alpha = 0`，`onPageCommitVisible` 后淡入；深色主题下开启 `isAlgorithmicDarkeningAllowed`（API 33+）让网页也变暗。词条页三个页签放在 `HorizontalPager` 里，pager 自带的滑动关掉，改用 `PageSwipe.kt` 统一判断方向（Pager 自带的只看横向位移，看不到 WebView 内部的竖向滚动，网页里稍斜的上下滑就会误切换）；灵敏度是其中的 `SWIPE_RATIO`；底部悬浮页签靠 nested scroll（离线页）和 WebView 的 `setOnScrollChangeListener`（网页）判断滚动方向来收起或显示。
 - **用户数据（M4）**：`user.db` 不用 Room，直接用 SQLite（`WritableDb` 接口；App 用 `AndroidWritableDb`，JVM 测试用 `JdbcWritableDb`）。没有内置收藏夹（早期版本无名的「默认」收藏夹启动时改名为普通收藏夹）。收藏按「词头 + 读音」**或同一个 `target`** 识别（导入的词读音常和 JMdict 不一致，如ビビンバ存成「びびんば」、读音后带「⓪」），`target` 记打开位置（`core:序号` / `dict:辞书:词条号` / `lookup:写法`；`lookup:` 词在离线数据里没有，打开的是只有网页页签的词条页）。收藏列表的一句话释义要先去掉开头的标签，标签里可能套括号（「［動ワ五（ハ四）］」），`DictionaryRepositoryTest.noSummaryStartsWithAClosingBracket` 扫全部辞书检查。备份是若干 TSV 组成的 zip，与表结构无关。真机测试 `DeviceUserDataTest` 只用临时文件，不碰用户的 `user.db`。词条页只有一种数据形状 `EntryPage`（JMdict 词、单本辞书条目、离线没有的词都转成它），新增网页页签只改 `EntryTab`。列表里的滑动删除不要用 `rememberSwipeToDismissBoxState`：它按列表 key 保存状态，撤销后词回来时还是「已滑走」，会立刻再删一次。拖动排序是自己写的 `core/designsystem/Reorder.kt`（没加依赖）。在真机上试删除时，撤销要在同一条命令里点，人看截图再点会超过提示的显示时间。
+- **大辞林第四版**（`tools/dicts/daijirin4.py`）：和新明解8 同一种 Yomitan 写法，复用 `shinmeikai8.to_html`。注意：
+  - 分段编号是图片：`一-fill.svg` 是黑框（词性一级），`一-default.svg` 是白框（其下的义项组），在 `gaiji/daijirin4.tsv` 里换成 App 画的 `box-b` / `box-w`；其余带 title 的图片是标签（文、季、漢、呉、可能…），转成「［文］」；`gaiji/` 里无 title 的（生僻字、变体假名、数学记号）保留图片。
+  - 汉字条目（「亜」）的音读、训读列表（`漢字音G`）在 `見出部` 里，整个 `見出部` 删掉前要先取出来放到正文开头。
+  - 词头里的链接（「—弁当」指向アート）随 `見出部` 一起去掉，正文链接全部保留。
+  - 用户在设置里保存过辞书顺序时，新加的辞书排在最后，需要用户自己调整。
 - **Anki 导出要用 Anki 实测**：`.apkg` 是 Anki 旧版（schema 11）集合，字段多、容易写错。改了 `AnkiPackage.kt` 后，用单独的虚拟环境装 Anki 官方库（`pip install anki`，不要装进 `tools/.venv`）跑 `python tools/tests/check_anki.py 文件.apkg`。JVM 测试会把样例包写到系统临时目录的 `jisho-test.apkg`。
 - **系统文件选择器**：导出、导入、备份、恢复都走系统的保存/打开界面。平时自动化测试不去点它（会在用户手机上留下文件）；逻辑靠 JVM 和真机测试覆盖，用户要求验证时才在手机上实际走一遍。
 - **导入 CSV 的编码**：Windows 版 Excel 存的「CSV」是 ANSI（中文系统 GBK、日文系统 Shift-JIS），`TextEncoding` 两种都试、按文字特征打分选一个；改打分规则后跑 `UserDataTest.ansiCsvIsReadInEitherCodePage`。

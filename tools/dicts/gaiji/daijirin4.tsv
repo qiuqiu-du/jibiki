@@ -1,0 +1,14 @@
+# 大辞林 第四版: gaiji pictures replaced by text (see tools/lib/gaiji.py).
+# Section numbers: black boxes (-fill) head a part of speech, white boxes (-default) a group of
+# senses under it; the app draws both. Other titled pictures are labels (文, 季, 漢, 可能 …) and
+# become ［text］; untitled ones in gaiji/ (rare kanji, hentaigana, math) stay images.
+一-fill.svg	<span class="box-b">一</span>	black-box section number 一: drawn by the app
+二-fill.svg	<span class="box-b">二</span>	black-box section number 二: drawn by the app
+三-fill.svg	<span class="box-b">三</span>	black-box section number 三: drawn by the app
+四-fill.svg	<span class="box-b">四</span>	black-box section number 四: drawn by the app
+五-fill.svg	<span class="box-b">五</span>	black-box section number 五: drawn by the app
+六-fill.svg	<span class="box-b">六</span>	black-box section number 六: drawn by the app
+一-default.svg	<span class="box-w">一</span>	white-box section number 一: drawn by the app
+二-default.svg	<span class="box-w">二</span>	white-box section number 二: drawn by the app
+三-default.svg	<span class="box-w">三</span>	white-box section number 三: drawn by the app
+四-default.svg	<span class="box-w">四</span>	white-box section number 四: drawn by the app
