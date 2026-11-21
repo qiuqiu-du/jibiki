@@ -34,7 +34,7 @@ def load_table(dict_id: str) -> dict[str, str]:
 def file_name(src: str) -> str:
     """Source path (gaiji/xx.svg, /gaiji/xx.svg, daijisen/xx.gif) -> name stored in the pack."""
     name = src.replace("\\", "/").split("/")[-1]
-    return name[:-4] + ".png" if name.endswith(".svg") else name
+    return name[:-4] + ".png" if name.endswith((".svg", ".bmp")) else name
 
 
 class Gaiji:
@@ -73,13 +73,23 @@ class Gaiji:
             if name not in self._files:
                 raise SystemExit(f"gaiji picture missing from the source: {name}")
             src_name, data = self._files[name]
-            out[name] = svg_to_png(data) if src_name.endswith(".svg") else data
+            out[name] = svg_to_png(data) if src_name.endswith(".svg") else bmp_to_png(data) if src_name.endswith(".bmp") else data
         return out
 
 
 def _strip_tags(markup: str) -> str:
     import re
     return re.sub(r"<[^>]+>", "", markup)
+
+
+def bmp_to_png(bmp: bytes) -> bytes:
+    """BMP (小学館日中) -> PNG with macOS's sips; the app decodes only PNG and GIF."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        src, dst = Path(d) / "in.bmp", Path(d) / "out.png"
+        src.write_bytes(bmp)
+        subprocess.run(["sips", "-s", "format", "png", str(src), "--out", str(dst)], capture_output=True, check=True)
+        return dst.read_bytes()
 
 
 def svg_to_png(svg: bytes) -> bytes:

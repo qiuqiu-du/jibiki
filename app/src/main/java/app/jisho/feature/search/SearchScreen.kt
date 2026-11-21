@@ -62,6 +62,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.jisho.core.designsystem.ja
+import app.jisho.core.designsystem.zh
 import app.jisho.core.userdata.HistoryItem
 import app.jisho.core.userdata.UserStore
 import kotlinx.coroutines.launch
@@ -306,6 +307,12 @@ private fun CandidateRow(c: Candidate, onClick: () -> Unit) {
     if (c.hint.isNotEmpty()) {
         Text(
             c.hint, style = MaterialTheme.typography.bodySmall.ja(), color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+    }
+    if (c.zhHint.isNotEmpty()) {
+        Text(
+            c.zhHint, style = MaterialTheme.typography.bodySmall.zh(), color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }

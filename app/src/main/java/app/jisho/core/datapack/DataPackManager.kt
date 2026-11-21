@@ -93,6 +93,6 @@ class DataPackManager(private val context: Context) : PackOpener {
         const val DICT_SCHEMA_VERSION = 2
 
         /** Default display order; the user's order (settings) comes first. */
-        private val ORDER = listOf("dict_daijisen.db", "dict_daijirin4.db", "dict_meikyo3.db", "dict_shinmeikai8.db")
+        private val ORDER = listOf("dict_daijisen.db", "dict_daijirin4.db", "dict_meikyo3.db", "dict_shinmeikai8.db", "dict_shogakukan_jc3.db")
     }
 }

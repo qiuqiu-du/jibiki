@@ -12,8 +12,10 @@ data class Candidate(
     val exact: Boolean,
     /** Kanji spellings shown next to a kana headword so homophones stay distinguishable (なる 成る・為る). */
     val kanjiNote: String = "",
-    /** Start of the definition, added only when rows would otherwise look identical. */
+    /** Start of the Japanese definition: to tell look-alike rows apart, or always if the user chose so. */
     val hint: String = "",
+    /** The Chinese meaning (glosses of a Japanese-Chinese dictionary), by the same rule as [hint]. */
+    val zhHint: String = "",
     /** Set when the row was found by undoing an inflection (食べなかった -> 食べる). */
     val inflection: Inflection? = null,
 ) {

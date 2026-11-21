@@ -187,4 +187,11 @@
     <string name="settings_backup_done">已备份</string>
     <string name="settings_undo_restore">撤销上次恢复</string>
     <string name="settings_undo_restore_done">已撤销，数据回到恢复之前</string>
+    <string name="settings_summary">一行释义</string>
+    <string name="settings_summary_desc">日文取自第一本启用、收录了这个词的日日辞书，中文取自第一本这样的日中辞书。搜索候选里没勾选的那一种，只在同一写法有好几个词时显示，用来区分。</string>
+    <string name="settings_summary_ja">日文</string>
+    <string name="settings_summary_zh">中文</string>
+    <string name="settings_summary_search">搜索候选</string>
+    <string name="settings_summary_favorites">收藏夹列表</string>
+    <string name="settings_summary_header">词条页词头下方</string>
 </resources>

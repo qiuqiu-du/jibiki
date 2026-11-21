@@ -1,6 +1,6 @@
 """Build datapacks/dict_<id>.db for one dictionary.
 
-Usage: tools/.venv/bin/python tools/build_dict.py daijisen|meikyo3|shinmeikai8|daijirin4
+Usage: tools/.venv/bin/python tools/build_dict.py daijisen|meikyo3|shinmeikai8|daijirin4|shogakukan_jc3
 Requires datapacks/core.db (run build_core.py first) for JMdict alignment.
 """
 import collections
@@ -20,7 +20,7 @@ from lib.textnorm import kata_to_hira, search_key
 from readers.jmdict_reader import read_jmdict
 
 ADAPTERS = {"daijisen": "dicts.daijisen", "meikyo3": "dicts.meikyo3", "shinmeikai8": "dicts.shinmeikai8",
-            "daijirin4": "dicts.daijirin4"}
+            "daijirin4": "dicts.daijirin4", "shogakukan_jc3": "dicts.shogakukan_jc3"}
 
 
 def load_core_keys():
@@ -42,17 +42,19 @@ def load_core_forms():
     """
     by_pair = collections.defaultdict(set)
     by_kana = collections.defaultdict(set)
+    by_kanji = collections.defaultdict(set)
     for e in read_jmdict(paths.JMDICT):
         for kanji, reading, _ in e.all_pairs():
             if kanji:
                 by_pair[(kanji, kata_to_hira(reading))].add(e.seq)
+                by_kanji[kanji].add(e.seq)
         for kanji, reading, _ in e.pairs():
             if not kanji or e.usually_kana:
                 by_kana[kata_to_hira(reading)].add(e.seq)
-    return by_pair, by_kana
+    return by_pair, by_kana, by_kanji
 
 
-def align(entry, by_pair, by_kana):
+def align(entry, by_pair, by_kana, by_kanji):
     seqs = set()
     reading = entry.reading
     for s in entry.spellings:
@@ -64,6 +66,12 @@ def align(entry, by_pair, by_kana):
         for s in entry.spellings:
             if kata_to_hira(s) == reading:
                 seqs |= by_kana.get(reading, set())
+    if not seqs and not reading:
+        # No reading printed (compound words listed under a main entry): a spelling only one
+        # JMdict word has is enough.
+        for s in entry.spellings:
+            if len(by_kanji.get(s, ())) == 1:
+                seqs |= by_kanji[s]
     return seqs
 
 
@@ -116,11 +124,11 @@ def main(dict_id):
         bodies.append(body)
         images.update(r.images)
 
-    by_pair, by_kana = load_core_forms()
+    by_pair, by_kana, by_kanji = load_core_forms()
     links = []
     linked = collections.defaultdict(set)
     for i, e in enumerate(entries, 1):
-        seqs = align(e, by_pair, by_kana)
+        seqs = align(e, by_pair, by_kana, by_kanji)
         linked[i] = seqs
         links += [(i, s) for s in seqs]
     aligned = sum(1 for s in linked.values() if s)
@@ -152,6 +160,7 @@ def main(dict_id):
         "schema_version": DICT_SCHEMA_VERSION,
         "body_format": BODY_FORMAT_VERSION,
         "kind": "dictionary",
+        "lang": adapter.lang,
         "dict_id": dict_id,
         "title": adapter.title,
         "revision": adapter.revision,

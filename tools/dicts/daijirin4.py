@@ -79,6 +79,14 @@ def rule(tag, a):
     return UNWRAP
 
 
+_BLACK_CIRCLED = {c: str(i) for i, c in enumerate("❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴", 1)}
+
+
+def post(body):
+    """Black circled sense numbers (❶, 中語義 in a few long entries) are drawn by the app, as in 明鏡."""
+    return re.sub("[\u2776-\u277f\u24eb-\u24f4]", lambda m: f'<span class="num-c">{_BLACK_CIRCLED[m.group(0)]}</span>', body)
+
+
 def link_target(href):
     if not href.startswith("?"):
         return None
@@ -104,4 +112,4 @@ def load() -> Adapter:
         aliases = list(dict.fromkeys(t.term for t in group))
         entries.append(SourceEntry(str(first.sequence), title, reading, spellings, body, aliases))
     return Adapter("daijirin4", index.get("title", "").replace("　", " "), index.get("revision", ""),
-                   entries, rule, link_target, GAIJI)
+                   entries, rule, link_target, GAIJI, post)

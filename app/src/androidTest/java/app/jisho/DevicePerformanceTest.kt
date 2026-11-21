@@ -3,6 +3,8 @@ package app.jisho
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.jisho.core.data.DictionaryRepository
+import app.jisho.core.data.SummaryPlace
+import app.jisho.core.data.SummaryPrefs
 import app.jisho.core.lemmatizer.KuromojiLemmatizer
 import app.jisho.feature.search.HandwritingRecognizer
 import app.jisho.feature.search.InkPoint
@@ -39,8 +41,10 @@ class DevicePerformanceTest {
             // inflected forms and a sentence go through the lemmatizers
             "食べなかった", "いった", "読めない", "tabenakatta", "してる", "お読みになりました",
             "かった", "食べさせられなかった", "昨日は本を読まなかった", "行かなきゃ")
+        val progress = java.io.File(app.filesDir, "perf-progress.txt").also { it.writeText("start\n") }
         repo.search("warm") // open the packs once (cold start cost is measured separately)
-        val perQuery = queries.associateWith { q -> (1..5).map { timeMs { repo.search(q) } } }
+        progress.appendText("warm\n")
+        val perQuery = queries.associateWith { q -> (1..5).map { timeMs { repo.search(q) } }.also { progress.appendText("$q ${it.max()}\n") } }
         val searchMs = perQuery.values.flatten()
         val ids = queries.mapNotNull { repo.search(it).words.firstOrNull()?.entryId }
         val entryMs = ids.map { id -> timeMs { repo.entry(id) } }
@@ -49,12 +53,21 @@ class DevicePerformanceTest {
             "p95=${"%.1f".format(p95(searchMs))} ms max=${"%.1f".format(searchMs.max())} ms\n" +
             "entry:  n=${entryMs.size} median=${"%.1f".format(entryMs.sorted()[entryMs.size / 2])} ms " +
             "p95=${"%.1f".format(p95(entryMs))} ms max=${"%.1f".format(entryMs.max())} ms\n"
+        // Worst case for search: a Japanese and a Chinese line on every row (settings → 一行释义).
+        val every = SummaryPlace.entries.toSet()
+        val withLines = DictionaryRepository(app.dataPacks, { app.combined }, { kuromoji }, summaries = { SummaryPrefs(every, every) })
+        withLines.search("warm")
+        progress.appendText("lines warm\n")
+        val linesMs = queries.flatMap { q -> (1..5).map { timeMs { withLines.search(q) } }.also { progress.appendText("lines $q ${it.max()}\n") } }
+        val linesReport = "search with both one-line meanings on every row: median=${"%.1f".format(linesMs.sorted()[linesMs.size / 2])} ms " +
+            "p95=${"%.1f".format(p95(linesMs))} ms max=${"%.1f".format(linesMs.max())} ms\n"
         val slowest = perQuery.entries.sortedByDescending { it.value.max() }.take(6)
             .joinToString("  ") { (q, t) -> "$q=${"%.0f".format(t.max())}" }
         val lemmaReport = "kuromoji: build+first call ${"%.0f".format(kuromojiMs)} ms, heap +${"%.0f".format(kuromojiHeap)} MB\n"
-        java.io.File(app.filesDir, "perf-report.txt").writeText(report + lemmaReport + "slowest queries (max ms): $slowest\n")
+        java.io.File(app.filesDir, "perf-report.txt").writeText(report + linesReport + lemmaReport + "slowest queries (max ms): $slowest\n")
         assertTrue("search p95 ${p95(searchMs)} ms > 50", p95(searchMs) <= 50)
         assertTrue("entry p95 ${p95(entryMs)} ms > 150", p95(entryMs) <= 150)
+        assertTrue("search with lines p95 ${p95(linesMs)} ms > 50", p95(linesMs) <= 50)
     }
 
     /**

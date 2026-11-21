@@ -48,8 +48,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.jisho.R
 import app.jisho.core.data.WordSummary
+import app.jisho.core.data.SummaryPrefs
+import app.jisho.core.data.SummaryPlace
 import app.jisho.core.designsystem.formatAccent
 import app.jisho.core.designsystem.ja
+import app.jisho.core.designsystem.zh
 import app.jisho.core.userdata.Favorite
 import app.jisho.core.userdata.FavoriteSort
 
@@ -103,13 +106,18 @@ fun FolderScreen(viewModel: FolderViewModel, folderId: Long, onBack: () -> Unit,
                     modifier = Modifier.padding(24.dp),
                 )
             }
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(list.orEmpty(), key = { it.word.headword + "|" + it.word.reading }) { fav ->
+            // Drawn once the words are loaded: rows on screen from the start don't animate in (a
+            // list shown empty first made every row "new", fading in under dividers already drawn).
+            if (list != null) LazyColumn(Modifier.fillMaxSize()) {
+                items(list, key = { it.word.headword + "|" + it.word.reading }) { fav ->
                     val checked = fav.word in selected
-                    SwipeToDelete(enabled = !selecting, onDelete = { viewModel.remove(setOf(fav.word)) }, modifier = Modifier.animateItem()) {
+                    Column(Modifier.animateItem()) {
+                    SwipeToDelete(enabled = !selecting, onDelete = { viewModel.remove(setOf(fav.word)) }, modifier = Modifier) {
                         WordRow(
                             fav,
                             summary = { viewModel.summary(fav.word) },
+                            cached = viewModel.cachedSummary(fav.word),
+                            lines = viewModel.lines(),
                             selecting = selecting,
                             checked = checked,
                             modifier = Modifier.combinedClickable(
@@ -119,6 +127,7 @@ fun FolderScreen(viewModel: FolderViewModel, folderId: Long, onBack: () -> Unit,
                         )
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
                 }
             }
         }
@@ -170,11 +179,13 @@ private fun SwipeToDelete(enabled: Boolean, onDelete: () -> Unit, modifier: Modi
 private fun WordRow(
     fav: Favorite,
     summary: suspend () -> WordSummary,
+    cached: WordSummary?,
+    lines: SummaryPrefs,
     selecting: Boolean,
     checked: Boolean,
     modifier: Modifier,
 ) {
-    val s by produceState<WordSummary?>(null, fav.word) { value = summary() }
+    val s by produceState(cached, fav.word) { if (value == null) value = summary() }
     Row(
         modifier.fillMaxWidth()
                         // Opaque: the swipe band lies behind the row.
@@ -192,14 +203,25 @@ private fun WordRow(
                 val accent = formatAccent(s?.accent)
                 if (accent.isNotEmpty()) Text("  $accent", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
             }
-            val def = s?.definition.orEmpty()
-            Text(
-                def.ifEmpty { " " },
-                style = MaterialTheme.typography.bodyMedium.ja(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // Meanings are normally known before the row is drawn (the view model looks them up
+            // first), so a row without one is compact from the start. Only a row drawn before its
+            // lookup finished keeps a blank line per meaning turned on, so it doesn't jump.
+            val shown = when (val loaded = s) {
+                null -> listOfNotNull(
+                    (" " to false).takeIf { SummaryPlace.Favorites in lines.japanese && !fav.word.target.startsWith("lookup:") },
+                    (" " to true).takeIf { SummaryPlace.Favorites in lines.chinese && !fav.word.target.startsWith("lookup:") },
+                )
+                else -> listOf(loaded.definition to false, loaded.chinese to true).filter { (t, _) -> t.isNotEmpty() }
+            }
+            shown.forEach { (text, chinese) ->
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodyMedium.let { if (chinese) it.zh() else it.ja() },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

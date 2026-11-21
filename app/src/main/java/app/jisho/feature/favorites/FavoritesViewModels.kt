@@ -1,5 +1,7 @@
 package app.jisho.feature.favorites
 
+import app.jisho.core.data.SummaryPlace
+import app.jisho.core.data.SummaryPrefs
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -17,6 +19,10 @@ import app.jisho.core.userdata.Folder
 import app.jisho.core.userdata.UserStore
 import app.jisho.core.userdata.WordRef
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -121,9 +127,25 @@ class FolderViewModel(
     val folders: StateFlow<List<Folder>> = store.version.mapLatest { store.folders() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** null while loading. */
+    private var preloading: Job? = null
+
+    /**
+     * null while loading. A list comes out once the first screenful's meanings are known, so
+     * every row is drawn at its final height (rows without a meaning take no blank line); the
+     * rest load right after, before they can be scrolled to.
+     */
     val words: StateFlow<List<Favorite>?> = combine(store.version, _sort) { _, s -> s }
-        .mapLatest { store.favorites(folderId, it) }
+        .mapLatest { sort ->
+            store.favorites(folderId, sort).also { list ->
+                // All in the background and in parallel, handed back once: one lookup at a time
+                // came back to the UI thread 24 times while it was busy with the page transition.
+                withContext(Dispatchers.IO) {
+                    list.take(FIRST_SCREEN).map { async { summary(it.word) } }.awaitAll()
+                }
+                preloading?.cancel()
+                preloading = viewModelScope.launch(Dispatchers.IO) { list.drop(FIRST_SCREEN).forEach { summary(it.word) } }
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _selected = MutableStateFlow<Set<WordRef>>(emptySet())
@@ -132,11 +154,24 @@ class FolderViewModel(
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 4)
     val messages: SharedFlow<Message> = _messages
 
-    private val summaries = HashMap<String, WordSummary>()
+    private val summaries = ConcurrentHashMap<String, WordSummary>()
 
-    /** Pitch accent and first definition sentence, looked up once per word. */
+    /** Which one-line meanings the rows show (settings), known before any is looked up. */
+    fun lines(): SummaryPrefs = repository.summaryPrefs()
+
+    private fun key(word: WordRef) = word.target + "|" + word.reading + "|" + lines().encode() // a settings change looks up again
+
+    /** Already looked up: rows coming back (from an entry page) show it at once, with no loading frame. */
+    fun cachedSummary(word: WordRef): WordSummary? = summaries[key(word)]
+
+    /** Pitch accent and one-line meanings, looked up once per word. */
     suspend fun summary(word: WordRef): WordSummary =
-        summaries[word.target + word.reading] ?: repository.summary(word.target, word.reading).also { summaries[word.target + word.reading] = it }
+        summaries[key(word)] ?: repository.summary(word.target, word.reading, SummaryPlace.Favorites).also { summaries[key(word)] = it }
+
+    private companion object {
+        /** Rows looked up before the list is drawn: a little more than a screen holds (about 13). */
+        const val FIRST_SCREEN = 16
+    }
 
     fun setSort(s: FavoriteSort) { _sort.value = s }
     fun toggle(word: WordRef) { _selected.value = _selected.value.let { if (word in it) it - word else it + word } }

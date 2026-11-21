@@ -124,6 +124,9 @@ fun renderBody(
                         "sense" -> SpanStyle(color = colors.accent, fontWeight = FontWeight.Bold)
                         "ex" -> SpanStyle(color = colors.example)
                         "note", "mark" -> SpanStyle(color = colors.muted)
+                        // Chinese in Japanese-Chinese dictionaries: Chinese glyph forms (费, 吃).
+                        "gloss" -> SpanStyle(fontWeight = FontWeight.SemiBold, localeList = ChineseLocale)
+                        "zh" -> SpanStyle(localeList = ChineseLocale)
                         else -> null
                     }
                     if (style != null) pushStyle(style)

@@ -1,5 +1,12 @@
 package app.jisho.feature.settings
 
+import app.jisho.core.data.SummaryPrefs
+import app.jisho.core.data.SummaryPlace
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -65,6 +72,16 @@ class SettingsViewModel(
 
     fun setLemmatizerMode(mode: LemmatizerMode) = viewModelScope.launch { settings.setLemmatizerMode(mode) }
 
+    val summaryPrefs: StateFlow<SummaryPrefs> =
+        settings.summaryPrefs.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SummaryPrefs())
+
+    /** Turns the Japanese ([chinese] false) or Chinese one-line meaning at [place] on or off. */
+    fun setSummary(chinese: Boolean, place: SummaryPlace, on: Boolean) = viewModelScope.launch {
+        val p = settings.summaryPrefs.first()
+        fun Set<SummaryPlace>.with() = if (on) this + place else this - place
+        settings.setSummaryPrefs(if (chinese) p.copy(chinese = p.chinese.with()) else p.copy(japanese = p.japanese.with()))
+    }
+
     /** Moves the dictionary at [index] by [delta] places (-1 up, +1 down). */
     fun move(index: Int, delta: Int) = update { list ->
         val to = index + delta
@@ -85,6 +102,7 @@ class SettingsViewModel(
 fun SettingsScreen(viewModel: SettingsViewModel, backup: BackupViewModel, onReimport: () -> Unit) {
     val mode by viewModel.lemmatizerMode.collectAsStateWithLifecycle()
     val dictionaries by viewModel.dictionaries.collectAsStateWithLifecycle()
+    val summary by viewModel.summaryPrefs.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     MessageEffect(backup.messages, snackbar)
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }, contentWindowInsets = WindowInsets(0)) { padding ->
@@ -113,6 +131,8 @@ fun SettingsScreen(viewModel: SettingsViewModel, backup: BackupViewModel, onReim
         TextButton(onClick = onReimport, modifier = Modifier.padding(horizontal = 8.dp)) {
             Text(stringResource(R.string.settings_reimport))
         }
+        SectionTitle(R.string.settings_summary)
+        SummaryTable(summary, viewModel::setSummary)
         SectionTitle(R.string.settings_lemmatizer)
         Column(Modifier.selectableGroup()) {
             Option(mode == LemmatizerMode.Kuromoji, R.string.settings_lemmatizer_kuromoji, R.string.settings_lemmatizer_kuromoji_desc) {
@@ -164,6 +184,40 @@ private fun DictionaryRow(
             Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.settings_move_down))
         }
         Switch(checked = d.enabled, onCheckedChange = onEnabled, modifier = Modifier.padding(start = 4.dp))
+    }
+}
+
+/** Rows: where (search results, favorites, entry header); columns: Japanese, Chinese line. */
+@Composable
+private fun SummaryTable(p: SummaryPrefs, onChange: (chinese: Boolean, SummaryPlace, Boolean) -> Unit) {
+    Text(
+        stringResource(R.string.settings_summary_desc),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+    )
+    val column = Modifier.width(72.dp)
+    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.weight(1f))
+        for (label in listOf(R.string.settings_summary_ja, R.string.settings_summary_zh)) {
+            Text(stringResource(label), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center, modifier = column)
+        }
+    }
+    val places = listOf(
+        SummaryPlace.Search to R.string.settings_summary_search,
+        SummaryPlace.Favorites to R.string.settings_summary_favorites,
+        SummaryPlace.Header to R.string.settings_summary_header,
+    )
+    for ((place, label) in places) {
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(label), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            for (chinese in listOf(false, true)) {
+                val on = place in (if (chinese) p.chinese else p.japanese)
+                Box(column, contentAlignment = Alignment.Center) {
+                    Checkbox(checked = on, onCheckedChange = { onChange(chinese, place, it) })
+                }
+            }
+        }
     }
 }
 

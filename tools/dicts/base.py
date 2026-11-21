@@ -24,3 +24,4 @@ class Adapter:
     link_target: callable    # raw href -> raw key in the source, or None to unwrap
     gaiji: object = None     # lib.gaiji.Gaiji: pictures kept as images go into the pack
     post: callable = None    # body markup -> body markup, applied after conversion
+    lang: str = "ja"         # "ja": Japanese-Japanese; "ja-zh": Japanese-Chinese (see dicts/shogakukan_jc3.py)

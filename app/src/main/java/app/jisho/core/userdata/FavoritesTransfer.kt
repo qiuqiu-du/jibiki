@@ -21,8 +21,9 @@ class FavoritesTransfer(
     suspend fun rows(folderIds: Set<Long>? = null, words: Set<WordRef>? = null): List<ExportRow> {
         val names = store.folders().associate { it.id to it.name }
         return store.allFavorites(folderIds).filter { words == null || it.word in words }.map { fav ->
-            val s = repository.summary(fav.word.target, fav.word.reading)
-            ExportRow(names[fav.folderId].orEmpty(), fav, s.accent.orEmpty(), s.definition)
+            // Exports ignore the display settings: every installed dictionary, both lines.
+            val s = repository.summary(fav.word.target, fav.word.reading, place = null)
+            ExportRow(names[fav.folderId].orEmpty(), fav, s.accent.orEmpty(), s.definition, s.chinese)
         }
     }
 
@@ -36,7 +37,7 @@ class FavoritesTransfer(
                 w.reading.takeIf { it.isNotEmpty() && it != w.headword }?.let { "<span class=reading>${html(it)}</span>" },
                 formatAccent(r.accent).takeIf { it.isNotEmpty() }?.let { "<span class=accent>$it</span>" },
             ).joinToString(" ")
-            val back = listOf(reading, html(r.definition)).filter { it.isNotEmpty() }.joinToString("<br>")
+            val back = listOf(reading, html(r.definition), html(r.chinese)).filter { it.isNotEmpty() }.joinToString("<br>")
             AnkiNote(html(w.headword), back, "${w.headword}|${w.reading}")
         }
         return AnkiPackage.build(deckName, notes, work, openDb)

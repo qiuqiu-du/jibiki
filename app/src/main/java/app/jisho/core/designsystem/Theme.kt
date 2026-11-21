@@ -35,6 +35,11 @@ val JapaneseLocale = LocaleList("ja")
 
 fun TextStyle.ja(): TextStyle = copy(localeList = JapaneseLocale)
 
+/** Chinese text (Japanese-Chinese dictionaries) uses Simplified Chinese glyph forms. */
+val ChineseLocale = LocaleList("zh-Hans-CN")
+
+fun TextStyle.zh(): TextStyle = copy(localeList = ChineseLocale)
+
 @Composable
 fun JishoTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     MaterialTheme(

@@ -38,10 +38,11 @@ ALIGN = [
     ("daijisen", "橋", "はし", 1237410), ("meikyo3", "橋", "はし", 1237410),
     ("shinmeikai8", "橋", "はし", 1237410),
     ("daijirin4", "食べる", "たべる", 1358280), ("daijirin4", "橋", "はし", 1237410),
+    ("shogakukan_jc3", "食べる", "たべる", 1358280), ("shogakukan_jc3", "手間", "てま", None),
 ]
 
 ALLOWED_TAGS = {"p", "br", "b", "i", "sup", "sub", "ruby", "rt", "span", "a", "img"}
-ALLOWED_SPAN = {"pos", "sense", "ex", "label", "note", "mark", "box-b", "box-w", "num-c"}
+ALLOWED_SPAN = {"pos", "sense", "ex", "label", "note", "mark", "box-b", "box-w", "num-c", "gloss", "zh"}
 
 failures = []
 
@@ -135,6 +136,15 @@ def check_pack(core, dict_id):
     covered = conn.execute(
         "SELECT count(*) FROM core.entry e WHERE e.freq < 99 AND EXISTS "
         "(SELECT 1 FROM dict_link l WHERE l.core_id = e.id)").fetchone()[0]
+    lang = dict(conn.execute("SELECT key, value FROM meta")).get("lang", "ja")
+    if lang == "ja-zh":
+        # The app's Chinese one-line meaning comes from <span class="gloss">: most common words need one.
+        glossed = sum(1 for (seq,) in core.execute("SELECT id FROM entry WHERE freq < 99")
+                      if any('class="gloss"' in dctx.decompress(conn.execute("SELECT body FROM dict_entry WHERE id = ?", (eid,)).fetchone()[0]).decode()
+                             for (eid,) in conn.execute("SELECT entry_id FROM dict_link WHERE core_id = ? LIMIT 1", (seq,))))
+        print(f"{dict_id}: common words with a Chinese gloss {glossed}/{common} = {glossed / common:.1%}")
+        if glossed < covered * 0.95:
+            fail(f"{dict_id}: only {glossed} of {covered} linked common words have a gloss")
     size = (paths.DATAPACKS / f"dict_{dict_id}.db").stat().st_size / 1e6
     print(f"{dict_id}: gaiji pictures {len(media)} ({sum(map(len, media.values())) / 1e3:.1f} KB)")
     print(f"{dict_id}: {n} entries, {size:.1f} MB, common JMdict words covered "
@@ -144,7 +154,7 @@ def check_pack(core, dict_id):
 def main():
     core = sqlite3.connect(paths.CORE_DB)
     check_core(core)
-    for d in ("daijisen", "meikyo3", "shinmeikai8", "daijirin4"):
+    for d in ("daijisen", "meikyo3", "shinmeikai8", "daijirin4", "shogakukan_jc3"):
         check_pack(core, d)
     total = sum(p.stat().st_size for p in paths.DATAPACKS.glob("*.db")) / 1e6
     print(f"total data packs: {total:.1f} MB")

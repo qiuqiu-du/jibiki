@@ -11,6 +11,8 @@ class DictDb(private val db: SqlDb, fallbackId: String) : AutoCloseable {
     val title: String = db.meta("title") ?: dictId
     val schemaVersion: Int = db.meta("schema_version")?.toIntOrNull() ?: 0
     val bodyFormat: Int = db.meta("body_format")?.toIntOrNull() ?: 0
+    /** A Japanese-Chinese dictionary (meta lang "ja-zh"): its senses mark their Chinese glosses. */
+    val chinese: Boolean = db.meta("lang") == "ja-zh"
 
     private val zdict: ZstdDictDecompress by lazy {
         ZstdDictDecompress(db.query("SELECT data FROM zdict WHERE id = 1") { it.blob(0) }.first())

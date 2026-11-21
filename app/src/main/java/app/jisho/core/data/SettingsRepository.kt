@@ -18,6 +18,7 @@ class SettingsRepository(private val context: Context) {
     private val inkModelReadyKey = booleanPreferencesKey("handwriting_model_ready")
     private val dictOrderKey = stringPreferencesKey("dict_order")
     private val dictDisabledKey = stringPreferencesKey("dict_disabled")
+    private val summaryKey = stringPreferencesKey("summary_lines")
 
     val lemmatizerMode: Flow<LemmatizerMode> = context.settingsStore.data.map { prefs ->
         prefs[lemmatizerKey]?.let { name -> LemmatizerMode.entries.firstOrNull { it.name == name } } ?: LemmatizerMode.Kuromoji
@@ -42,16 +43,23 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    /** Where one-line meanings appear (see [SummaryPrefs]). */
+    val summaryPrefs: Flow<SummaryPrefs> = context.settingsStore.data.map { SummaryPrefs.decode(it[summaryKey]) }
+
+    suspend fun setSummaryPrefs(p: SummaryPrefs) {
+        context.settingsStore.edit { it[summaryKey] = p.encode() }
+    }
+
     /** Settings a backup carries (not device state such as the handwriting model). */
     suspend fun backupSettings(): Map<String, String> {
         val prefs = context.settingsStore.data.first()
-        return listOf(lemmatizerKey, dictOrderKey, dictDisabledKey).mapNotNull { k -> prefs[k]?.let { k.name to it } }.toMap()
+        return listOf(lemmatizerKey, dictOrderKey, dictDisabledKey, summaryKey).mapNotNull { k -> prefs[k]?.let { k.name to it } }.toMap()
     }
 
     /** Restores what [backupSettings] saved; keys it doesn't know are ignored, missing ones reset. */
     suspend fun restoreSettings(values: Map<String, String>) {
         context.settingsStore.edit { prefs ->
-            listOf(lemmatizerKey, dictOrderKey, dictDisabledKey).forEach { k ->
+            listOf(lemmatizerKey, dictOrderKey, dictDisabledKey, summaryKey).forEach { k ->
                 val v = values[k.name]
                 if (v != null) prefs[k] = v else prefs.remove(k)
             }

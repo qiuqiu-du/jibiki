@@ -26,7 +26,7 @@ class DictDbTest {
     @Test
     fun everyEntryDecompressesWithAllowedMarkupAndValidLinks() {
         val allowedTags = setOf("p", "br", "b", "i", "sup", "sub", "ruby", "rt", "span", "a", "img")
-        val allowedSpans = setOf("pos", "sense", "ex", "label", "note", "mark", "box-b", "box-w", "num-c")
+        val allowedSpans = setOf("pos", "sense", "ex", "label", "note", "mark", "box-b", "box-w", "num-c", "gloss", "zh")
         val tag = Regex("</?([a-zA-Z0-9-]+)")
         val span = Regex("<span class=\"([^\"]*)\"")
         val internalLink = Regex("<a href=\"#(\\d+)\"")

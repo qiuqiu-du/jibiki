@@ -1,5 +1,6 @@
 package app.jisho.feature.entry
 
+import app.jisho.core.data.SummaryPlace
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -75,6 +76,7 @@ import app.jisho.core.designsystem.reasonText
 import app.jisho.core.designsystem.BodyColors
 import app.jisho.core.designsystem.formatAccent
 import app.jisho.core.designsystem.ja
+import app.jisho.core.designsystem.zh
 import app.jisho.core.designsystem.renderBody
 import app.jisho.core.designsystem.gaijiContent
 import app.jisho.core.designsystem.badgeContent
@@ -107,6 +109,9 @@ data class WordHead(
     val otherForms: List<String> = emptyList(),
     /** Reached from an inflected form (食べなかった -> 食べる). */
     val inflection: Inflection? = null,
+    /** One-line meanings the user wants under the headword (settings), "" if off or none. */
+    val summary: String = "",
+    val chinese: String = "",
 )
 
 /**
@@ -239,9 +244,11 @@ class EntryViewModel(
     }
 
     private suspend fun load(target: EntryTarget): EntryUiState = when (target) {
-        is EntryTarget.Core -> repository.entry(target.id)
-            ?.let { EntryUiState.Ready(EntryPage.of(it.core, it.definitions, target.inflection, it.baseForms)) }
-            ?: EntryUiState.NotFound
+        is EntryTarget.Core -> repository.entry(target.id)?.let { d ->
+            val page = EntryPage.of(d.core, d.definitions, target.inflection, d.baseForms)
+            val s = repository.summary(page.word.target, d.core.reading, SummaryPlace.Header)
+            EntryUiState.Ready(page.copy(head = page.head?.copy(summary = s.definition, chinese = s.chinese)))
+        } ?: EntryUiState.NotFound
         is EntryTarget.Dict -> repository.dictEntry(target.dictId, target.id)
             ?.let { EntryUiState.Ready(EntryPage.of(it.first, it.second)) } ?: EntryUiState.NotFound
         is EntryTarget.Lookup -> {
@@ -490,6 +497,8 @@ private fun WordHeader(h: WordHead) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        if (h.summary.isNotEmpty()) Text(h.summary, style = MaterialTheme.typography.bodyLarge.ja())
+        if (h.chinese.isNotEmpty()) Text(h.chinese, style = MaterialTheme.typography.bodyLarge.zh())
     }
 }
 

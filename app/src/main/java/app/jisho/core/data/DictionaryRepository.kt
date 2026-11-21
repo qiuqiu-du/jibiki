@@ -57,7 +57,6 @@ interface PackOpener {
     fun openDictionaries(): List<DictDb>
 }
 
-private const val HINT_LENGTH = 18
 
 /** Body markup -> plain text without ruby readings (for hints); number badges become ［一］〔一〕(1). */
 internal fun plainText(markup: String): String =
@@ -78,6 +77,7 @@ class DictionaryRepository(
     private val lemmatizer: () -> Lemmatizer? = { null },
     private val segmenter: () -> Segmenter? = { null },
     private val prefs: () -> DictPrefs = { DictPrefs() },
+    private val summaries: () -> SummaryPrefs = { SummaryPrefs() },
 ) : DictionaryList {
     @Volatile private var core: CoreDb? = null
     /** Every imported dictionary, in the default order; [dicts] is what the user turned on, in their order. */
@@ -116,7 +116,7 @@ class DictionaryRepository(
         // JMdict lists some inflected expressions on their own (信じられない) that no dictionary
         // defines; when the input also has a defined dictionary form, that form goes first.
         val (defined, undefined) = if (lemmas.isEmpty()) exact to emptyList() else exact.partition { hasDefinition(it.entryId) }
-        val words = distinguish(defined + lemmas + undefined + prefix.filter { p -> lemmas.none { it.entryId == p.entryId } })
+        val words = withHints(distinguish(defined + lemmas + undefined + prefix.filter { p -> lemmas.none { it.entryId == p.entryId } }))
         val dictOnly = if (words.size < 20) dicts.flatMap { it.searchOwnKeys(key, limit = 10) } else emptyList()
         // Word by word whenever the input is not one word or one inflected word: a sentence, a
         // word with a particle (食べますよ), or a word with an auxiliary verb (食べてくる).
@@ -124,6 +124,25 @@ class DictionaryRepository(
             segmenter()?.segment(text).orEmpty().takeIf { it.size >= 2 || it.singleOrNull()?.surface != text }.orEmpty()
         } else emptyList()
         SearchResult(raw, words, dictOnly, segments)
+    }
+
+    /** Where the user wants one-line meanings (read on every use, like the dictionary settings). */
+    fun summaryPrefs(): SummaryPrefs = summaries()
+
+    /** Search rows get a Japanese / Chinese line on every row when the user chose so (else only via [distinguish]). */
+    private fun withHints(words: List<Candidate>): List<Candidate> {
+        val p = summaries()
+        val ja = SummaryPlace.Search in p.japanese
+        val zh = SummaryPlace.Search in p.chinese
+        if (!ja && !zh) return words
+        val ds = dicts
+        return words.map { c ->
+            val links = ds.map { it.linkedIds(c.entryId) }
+            c.copy(
+                hint = c.hint.ifEmpty { if (ja) hintFor(ds, links, chinese = false) else "" },
+                zhHint = c.zhHint.ifEmpty { if (zh) hintFor(ds, links, chinese = true) else "" },
+            )
+        }
     }
 
     private fun hasDefinition(coreId: Long) = dicts.any { it.linkedIds(coreId).isNotEmpty() }
@@ -149,30 +168,48 @@ class DictionaryRepository(
         val ds = dicts // one snapshot: the settings may change while this runs
         val dropped = HashSet<Long>()
         val hints = HashMap<Long, String>()
+        val zhHints = HashMap<Long, String>()
         for (group in groups.values) {
             val links = group.associate { c -> c.entryId to ds.map { it.linkedIds(c.entryId) } }
             val kept = group.distinctBy { links[it.entryId] }
             group.filter { it !in kept }.forEach { dropped += it.entryId }
-            if (kept.size > 1) kept.forEach { c ->
-                // Prefer a definition only this row links to, so overlapping rows get different hints.
-                val others = kept.filter { it != c }.map { links[it.entryId]!! }
-                val own = links[c.entryId]!!.mapIndexed { d, ids -> ids.filter { id -> others.none { id in it[d] } } }
-                hints[c.entryId] = hintFor(ds, own).ifEmpty { hintFor(ds, links[c.entryId]!!) }
+            if (kept.size > 1) {
+                val used = HashSet<String>()
+                val usedZh = HashSet<String>()
+                kept.forEach { c ->
+                    // Prefer a definition only this row links to, then any not yet used by another
+                    // row: two rows may share their first definition (饗宴 and Plato's 饗宴).
+                    val others = kept.filter { it != c }.map { links[it.entryId]!! }
+                    val own = links[c.entryId]!!.mapIndexed { d, ids -> ids.filter { id -> others.none { id in it[d] } } }
+                    fun pick(chinese: Boolean, taken: MutableSet<String>): String {
+                        val options = hintOptions(ds, own, chinese) + hintOptions(ds, links[c.entryId]!!, chinese)
+                        return (options.firstOrNull { it !in taken } ?: options.firstOrNull().orEmpty()).also { taken += it }
+                    }
+                    hints[c.entryId] = pick(chinese = false, used)
+                    zhHints[c.entryId] = pick(chinese = true, usedZh)
+                }
+                // A line the same on every row tells nothing apart (both 腰 link to one Chinese entry).
+                if (kept.map { zhHints[it.entryId] }.distinct().size == 1) kept.forEach { zhHints.remove(it.entryId) }
             }
         }
         return words.filter { it.entryId !in dropped }
-            .map { c -> hints[c.entryId]?.let { c.copy(hint = it) } ?: c }
+            .map { c -> c.copy(hint = hints[c.entryId] ?: c.hint, zhHint = zhHints[c.entryId] ?: c.zhHint) }
     }
 
-    /** First words of the first linked definition (plain text), or "" if none is linked. */
-    private fun hintFor(ds: List<DictDb>, linksPerDict: List<List<Long>>): String {
-        ds.zip(linksPerDict).forEach { (d, ids) ->
-            val body = ids.firstOrNull()?.let { d.entry(it)?.body } ?: return@forEach
-            val text = dropLeadingLabel(plainText(body)).trim()
-            if (text.isNotEmpty()) return text.take(HINT_LENGTH)
-        }
-        return ""
-    }
+    /**
+     * Start of the first linked definition's first sentence in a Japanese-Japanese dictionary, or
+     * with [chinese] the gloss line of the first Japanese-Chinese one that has glosses; "" if none.
+     */
+    private fun hintFor(ds: List<DictDb>, linksPerDict: List<List<Long>>, chinese: Boolean): String =
+        hintOptions(ds, linksPerDict, chinese).firstOrNull().orEmpty()
+
+    /** Every linked definition's hint text, best first (dictionary order, then entry order). */
+    private fun hintOptions(ds: List<DictDb>, linksPerDict: List<List<Long>>, chinese: Boolean): Sequence<String> =
+        ds.asSequence().zip(linksPerDict.asSequence()).filter { (d, _) -> d.chinese == chinese }
+            .flatMap { (d, ids) -> ids.asSequence().mapNotNull { d.entry(it)?.body } }
+            // Whole lines: the row shows "…" where the screen runs out (a fixed cut looked broken off).
+            .map { body -> if (chinese) glossLine(body) else firstSentence(body) }
+            .filter { it.isNotEmpty() }
 
     suspend fun entry(coreId: Long): EntryDetail? = withContext(Dispatchers.IO) {
         ensureOpen()
@@ -187,21 +224,37 @@ class DictionaryRepository(
     }
 
     /**
-     * What a saved word shows in lists and exports: its pitch accent (raw, such as "0,2") and the
-     * first sentence of its first definition. [target]: see [app.jisho.core.userdata.WordRef].
+     * A word's pitch accent (raw, such as "0,2") and one-line meanings: [WordSummary.definition]
+     * from the first Japanese-Japanese dictionary that has one (first sentence), [WordSummary.chinese]
+     * from the first Japanese-Chinese one (gloss line). For [place], only the lines the user wants
+     * there, from enabled dictionaries in the user's order; for null (exports), both lines from
+     * every installed dictionary. [target]: see [app.jisho.core.userdata.WordRef].
      */
-    suspend fun summary(target: String, reading: String): WordSummary = withContext(Dispatchers.IO) {
+    suspend fun summary(target: String, reading: String, place: SummaryPlace? = null): WordSummary = withContext(Dispatchers.IO) {
         ensureOpen()
+        val p = summaries()
+        val ja = place == null || place in p.japanese
+        val zh = place == null || place in p.chinese
+        val ds = if (place == null) arrange(all, prefs()) else dicts
+        fun line(d: DictDb, body: String) = if (d.chinese) glossLine(body) else firstSentence(body)
+        fun first(chinese: Boolean, bodyOf: (DictDb) -> String?) =
+            ds.asSequence().filter { it.chinese == chinese }.mapNotNull { d -> bodyOf(d)?.let { line(d, it) } }.firstOrNull { it.isNotEmpty() }.orEmpty()
         val parts = target.split(':')
         when (parts[0]) {
             "core" -> parts.getOrNull(1)?.toLongOrNull()?.let { id ->
                 val entry = core!!.entry(id) ?: return@let null
-                val body = dicts.firstNotNullOfOrNull { d -> d.entriesForCore(id).firstOrNull()?.body }
-                WordSummary(entry.accents[reading] ?: entry.accents[entry.reading], body?.let { firstSentence(it) }.orEmpty())
+                val body = { d: DictDb -> d.linkedIds(id).firstOrNull()?.let { d.entry(it)?.body } }
+                WordSummary(
+                    entry.accents[reading] ?: entry.accents[entry.reading],
+                    if (ja) first(chinese = false, body) else "",
+                    if (zh) first(chinese = true, body) else "",
+                )
             }
+            // A dictionary-only item: its own dictionary is the only source (none if turned off).
             "dict" -> parts.getOrNull(2)?.toLongOrNull()?.let { id ->
-                val d = all.firstOrNull { it.dictId == parts[1] } ?: return@let null
-                WordSummary(null, d.entry(id)?.body?.let { firstSentence(it) }.orEmpty())
+                val d = ds.firstOrNull { it.dictId == parts[1] } ?: return@let null
+                val text = d.entry(id)?.body?.let { line(d, it) }.orEmpty()
+                WordSummary(null, if (ja && !d.chinese) text else "", if (zh && d.chinese) text else "")
             }
             else -> null
         } ?: WordSummary(null, "")
@@ -230,17 +283,22 @@ class DictionaryRepository(
     }
 }
 
-/** [accent]: raw pitch accent or null; [definition]: first sentence of the first definition, "" if none. */
-data class WordSummary(val accent: String?, val definition: String)
+/** [accent]: raw pitch accent or null; [definition] / [chinese]: one-line meanings, "" if none (see [DictionaryRepository.summary]). */
+data class WordSummary(val accent: String?, val definition: String, val chinese: String = "")
 
 private const val SUMMARY_LENGTH = 80
+private const val FIRST_SENTENCE_SCAN = 3000
 
 /**
  * The first sentence of a definition: of its first numbered sense when it has numbered senses
  * (before them come grammar notes: ［動バ下一］［文］た・ぶ［バ下二］《…》), without leading labels.
  */
-internal fun firstSentence(body: String): String {
-    var text = plainText(body)
+internal fun firstSentence(body: String): String = firstSentence(body, FIRST_SENTENCE_SCAN)
+
+internal fun firstSentence(body: String, scan: Int): String {
+    // Only the start matters: long entries (する, 大辞泉 encyclopedic ones) run to 100 KB, and the
+    // regexes below are slow on Android's ICU engine. A tag cut in half at the end is harmless.
+    var text = plainText(body.take(scan))
     // Sense 1: "1", "１", "❶", "①" or a drawn circle "(1)", standing alone (not 第1音), and only
     // where sense numbers can be: outside brackets (《…type 1》) and before any sentence ends.
     val t = text

@@ -2,6 +2,7 @@ package app.jisho
 
 import android.app.Application
 import app.jisho.core.data.DictPrefs
+import app.jisho.core.data.SummaryPrefs
 import app.jisho.core.data.DictionaryRepository
 import app.jisho.core.data.SettingsRepository
 import app.jisho.core.datapack.DataPackManager
@@ -32,6 +33,7 @@ class JishoApp : Application() {
 
     @Volatile private var lemmatizerMode = LemmatizerMode.Kuromoji
     @Volatile private var dictPrefs = DictPrefs()
+    @Volatile private var summaryPrefs = SummaryPrefs()
 
     /** Changes when search results may differ: a setting changed or Kuromoji finished loading. */
     private val _resultsVersion = MutableStateFlow(0)
@@ -48,6 +50,7 @@ class JishoApp : Application() {
             lemmatizer = { currentLemmatizer() },
             segmenter = { if (lemmatizerMode == LemmatizerMode.Kuromoji) kuromoji.lemmatizer else null },
             prefs = { dictPrefs },
+            summaries = { summaryPrefs },
         )
     }
 
@@ -67,6 +70,9 @@ class JishoApp : Application() {
         // and mode A uses the rule table alone until it is ready.
         appScope.launch {
             settings.dictPrefs.collect { dictPrefs = it; _resultsVersion.update { v -> v + 1 } }
+        }
+        appScope.launch {
+            settings.summaryPrefs.collect { summaryPrefs = it; _resultsVersion.update { v -> v + 1 } }
         }
         appScope.launch {
             settings.lemmatizerMode.collect { mode ->
