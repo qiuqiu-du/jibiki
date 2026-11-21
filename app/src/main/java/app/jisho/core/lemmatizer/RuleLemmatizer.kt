@@ -17,16 +17,25 @@ data class DeinflectRule(
  * forms that don't exist. All grammar lives in the rule table, none in this code.
  */
 /**
- * The parsed rule table: suffix rules, honorific prefixes (お, ご), and [raw]: the
- * intermediate types the typed word itself can be, each with its label (null for none).
+ * The parsed rule table: suffix rules, honorific prefixes (お, ご), [raw]: the intermediate
+ * types the typed word itself can be, each with its label (null for none), [never]: marker ->
+ * reasons or types no rule further in may have, and [minStem]: reason -> shortest kana-only
+ * stem its rules may leave.
  */
-data class RuleTable(val rules: List<DeinflectRule>, val prefixes: List<String>, val raw: Map<String, String?>)
+data class RuleTable(
+    val rules: List<DeinflectRule>,
+    val prefixes: List<String>,
+    val raw: Map<String, String?>,
+    val never: Map<String, Set<String>> = emptyMap(),
+    val minStem: Map<String, Int> = emptyMap(),
+)
 
 class RuleLemmatizer(private val table: RuleTable, private val maxDepth: Int = 7) : Lemmatizer {
 
     private val rules = table.rules
 
-    private class Form(val term: String, val types: Set<String>?, val reasons: List<String>)
+    /** [passed]: the reasons and types of every step undone so far, for the @never lines. */
+    private class Form(val term: String, val types: Set<String>?, val reasons: List<String>, val passed: Set<String>)
 
     override fun lemmatize(text: String): List<LemmaCandidate> {
         // Honorific frames (お〜になる, お〜する, お〜です, お〜ください) need their prefix: without
@@ -41,21 +50,21 @@ class RuleLemmatizer(private val table: RuleTable, private val maxDepth: Int = 7
 
     private fun deinflect(text: String): List<LemmaCandidate> {
         val result = ArrayList<LemmaCandidate>()
-        val seen = HashSet<Pair<String, Set<String>>>()
-        var frontier = listOf(Form(text, null, emptyList()))
+        // A form reached again counts as new only if it carries other @never markers.
+        val seen = HashSet<Triple<String, Set<String>, Set<String>>>()
+        var frontier = listOf(Form(text, null, emptyList(), emptySet()))
         repeat(maxDepth) {
             val next = ArrayList<Form>()
             for (f in frontier) for (r in rules) {
                 if (!f.term.endsWith(r.from)) continue
                 val rawLabel = if (f.types == null) rawLabel(r) ?: continue else emptyList()
-                if (f.types != null && r.typesIn.none { it in f.types }) continue
+                if (f.types != null && r.typesIn.none { it in f.types || (it == "v5" && f.types.any { t -> t in GODAN_SUBTYPES }) }) continue
                 val term = f.term.dropLast(r.from.length) + r.to
-                if (term.isEmpty() || !seen.add(term to r.typesOut)) continue
-                // A lone kana is too little to carry an honorific frame: おいしそう is not
-                // お + い(る) + し(する) + そう. One-kanji stems (お見えになる's 見え, 出) are fine.
-                if (HONORIFIC in r.reasons && term.length == 1 && term[0].isKana()) continue
+                val passed = f.passed + rawLabel
+                if (term.isEmpty() || forbidden(r, passed) || tooShort(r, term)) continue
+                if (!seen.add(Triple(term, r.typesOut, (passed + r.reasons + r.typesOut) intersect table.never.keys))) continue
                 // The rule removes the innermost remaining step, so its labels go first.
-                val form = Form(term, r.typesOut, r.reasons + rawLabel + f.reasons)
+                val form = Form(term, r.typesOut, r.reasons + rawLabel + f.reasons, passed + r.reasons + r.typesOut)
                 next += form
                 val finals = r.typesOut intersect FINAL_TYPES
                 if (finals.isNotEmpty() && term != text) {
@@ -67,6 +76,16 @@ class RuleLemmatizer(private val table: RuleTable, private val maxDepth: Int = 7
         }
         return result
     }
+
+    /** An @never line forbids [r] inside one of the steps [passed] (書いてん is not 書いてる + ん). */
+    private fun forbidden(r: DeinflectRule, passed: Set<String>): Boolean = passed.any { m ->
+        val never = table.never[m] ?: return@any false
+        r.reasons.any { it in never } || r.typesOut.any { it in never }
+    }
+
+    /** An @min-stem line: おいしそう is not お + い(る) + し + そう; a kanji stem (お見えになる) is fine. */
+    private fun tooShort(r: DeinflectRule, stem: String): Boolean =
+        r.reasons.any { reason -> table.minStem[reason]?.let { stem.length < it && stem.all { c -> c.isKana() } } == true }
 
     /**
      * Whether [r] may read the typed word itself, and the label that reading adds: a rule
@@ -91,6 +110,9 @@ class RuleLemmatizer(private val table: RuleTable, private val maxDepth: Int = 7
                 parseRules(ruleLines),
                 prefixes = directive("@prefix").map { it[1] },
                 raw = directive("@raw").associate { it[1] to it[2].takeIf { r -> r != "-" } },
+                never = directive("@never").groupBy({ it[1] }, { it[2].split(',').map(String::trim) })
+                    .mapValues { (_, lists) -> lists.flatten().toSet() },
+                minStem = directive("@min-stem").associate { it[1] to it[2].toInt() },
             )
         }
 

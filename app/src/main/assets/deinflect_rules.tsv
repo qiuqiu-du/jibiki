@@ -13,18 +13,34 @@
 #        v5aru (なさる...),
 #        vk (来る), vs (する verbs and suru nouns), adj-i, adj-na,
 #        te (て/で form), ta (た/だ form), stem (連用形), mizen (未然形)
+#        v5r (regular godan る verb), v5r-i (ある), v5aru, vs-s (愛する): JMdict codes, where one ending
+#        needs them apart. A rule for v5 also takes the る sub-types v5r, v5r-i, v5aru.
+#        mizen-nai / mizen-zu / mizen-reru / mizen-rareru: which 未然形 an auxiliary takes, where a
+#        verb has several (する: しない, せず, される, せられる); they always come with plain mizen.
+#        Marker types (no rule takes them, only @never lines look at them):
+#        colloquial: a contraction that only inflects colloquially (てる, ちゃう; not とく: 書いとかん);
+#        te-iru: the auxiliary いる after て and its contraction てる (書いている, 書いてる).
 # @raw <type> <reason> lines list the intermediate types the typed word itself can be, with
 # the label shown when a rule reads it that way (読み -> 読む is a 連用形). A bare 未然形
 # (読ま) is never a word on its own, so mizen is not listed.
 # Lines starting with @prefix name an honorific prefix (お読みになる): the input is also
 # lemmatized without it, keeping only results that undid an honorific ending.
 #
+# Lines starting with @never <marker> <items> forbid readings that no Japanese speaker builds:
+# once a reading has passed <marker> (a reason, or a type in types_out), no rule further in
+# may have any of <items> among its reasons or types_out. Markers and items come from the
+# columns above, so every constraint stays in this file.
+# @min-stem <reason> <n>: the stem a <reason> rule leaves, if written only in kana, needs at
+# least n characters (a single kana carries no meaning; a single kanji does: お見えになる).
+#
 # Every new edge case needs a rule here and a line in src/test/resources/lemma_cases.tsv.
 
 ## what the typed word itself can be
 @raw	te	-
 @raw	ta	-
-@raw	stem	stem
+@raw	stem	renyou
+# a bare 連用形 is never the いる after て: 書いてい is not a word (書いており、, 書いておき、 are)
+@never	renyou	te-iru
 
 ## て form -> dictionary form
 て	る	te	v1,vk	te
@@ -67,13 +83,13 @@
 だり	だ	-	ta	tari
 
 ## auxiliaries after the て form
-いる	-	v1	te	progressive
-てる	て	v1	te	progressive
-でる	で	v1	te	progressive
+いる	-	v1	te,te-iru	progressive
+てる	て	v1	te,colloquial,te-iru	progressive
+でる	で	v1	te,colloquial,te-iru	progressive
 おる	-	v5	te	progressive
 しまう	-	v5	te	finish
-ちゃう	て	v5	te	finish
-じゃう	で	v5	te	finish
+ちゃう	て	v5	te,colloquial	finish
+じゃう	で	v5	te,colloquial	finish
 おく	-	v5	te	prepare
 とく	て	v5	te	prepare
 どく	で	v5	te	prepare
@@ -99,6 +115,8 @@
 @prefix	お
 @prefix	ご
 @prefix	御
+@never	honorific	potential,passive,passive_potential,causative_passive
+@min-stem	honorific	2
 になる	-	v5	stem	honorific
 ください	-	-	stem	honorific,request
 する	-	vs	stem	honorific
@@ -121,23 +139,28 @@
 き	くる	stem	vk	-
 
 ## 未然形 + auxiliary
-ない	-	adj-i	mizen	neg
-ず	-	-	mizen	neg
-ずに	-	-	mizen	neg
-ぬ	-	-	mizen	neg
-ん	-	-	mizen	neg
-なきゃ	-	-	mizen	must
-なくちゃ	-	-	mizen	must
-なければ	-	-	mizen	neg,cond
-なくて	-	-	mizen	neg,te
-ないで	-	-	mizen	neg,te
-れる	-	v1	mizen	passive
-られる	-	v1	mizen	passive_potential
-せる	-	v1	mizen	causative
+ない	-	adj-i	mizen,mizen-nai	neg
+ず	-	-	mizen,mizen-zu	neg
+ずに	-	-	mizen,mizen-zu	neg
+ぬ	-	-	mizen,mizen-zu	neg
+ん	-	-	mizen,mizen-zu	neg
+# ず・ぬ・ん are not put on a colloquial contraction (書いてる -> not 書いてん; られる is: やってられない)
+@never	mizen-zu	colloquial
+なきゃ	-	-	mizen,mizen-nai	must
+なくちゃ	-	-	mizen,mizen-nai	must
+なければ	-	-	mizen,mizen-nai	neg,cond
+なくて	-	-	mizen,mizen-nai	neg,te
+ないで	-	-	mizen,mizen-nai	neg,te
+れる	-	v1	mizen,mizen-reru	passive
+られる	-	v1	mizen,mizen-rareru	passive_potential
+# a potential form takes no passive: 課せられる is 課する + られる, not 課す + 可能 + られる
+@never	passive_potential	potential
+@never	passive	potential
+せる	-	v1	mizen,mizen-reru	causative
 させる	-	v1	mizen	causative
 される	-	v1	mizen	causative_passive
 
-## 未然形 -> dictionary form
+## 未然形 -> dictionary form. ある (v5r-i) only has あらず, あらぬ, あらん: its negative is ない itself.
 -	る	mizen	v1,vk	-
 か	く	mizen	v5	-
 が	ぐ	mizen	v5	-
@@ -146,12 +169,15 @@
 な	ぬ	mizen	v5	-
 ば	ぶ	mizen	v5	-
 ま	む	mizen	v5	-
-ら	る	mizen	v5	-
+ら	る	mizen	v5r,v5aru	-
+ら	る	mizen-zu	v5r-i	-
 わ	う	mizen	v5	-
 こ	くる	mizen	vk	-
-し	する	mizen	vs	-
-さ	する	mizen	vs	-
-せ	する	mizen	vs	-
+し	する	mizen-nai	vs	-
+さ	する	mizen-reru	vs	-
+# special suru verbs (JMdict vs-s) also conjugate like godan す: 愛さない, 愛さず
+さ	する	mizen	vs-s	-
+せ	する	mizen-zu,mizen-rareru	vs	-
 
 ## potential (godan verbs and ら抜き)
 ける	く	v1	v5	potential
@@ -212,7 +238,7 @@
 ければ	い	-	adj-i	cond
 
 ## colloquial contractions
-んない	る	adj-i	v5	neg,contraction
+んない	る	adj-i	v5r,v5aru	neg,contraction
 
 ## i-adjectives
 くない	い	adj-i	adj-i	neg

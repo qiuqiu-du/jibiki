@@ -1,0 +1,34 @@
+# Readings the rule table must NOT build: grammatical-looking chains that are not Japanese.
+# Columns: input, lemma that must not appear (as spelled in JMdict), why. Used by LemmatizerTest
+# in both modes. Each line has a real form next to it in lemma_cases.tsv (category guard).
+# Adding a case: put the over-built reading here and fix it with a rule in deinflect_rules.tsv.
+
+# する takes ない on し, ず/ぬ/ん on せ, れる/せる on さ
+さん	する	する + ん is せん, not さん
+お手伝いさん	手伝う	same: not お手伝い + さ + ん
+しれん	する	passive of する is される, not しれる
+しせん	する	causative of する is させる, not しせる
+# ある's negative is ない itself: no あらない / あんない (あらず, あらぬ are fine)
+あんない	ある	案内 is not ある + んない
+あらない	ある	not a word
+# an honorific frame holds the plain 連用形 (or a causative, お待たせする), never potential or passive
+おかえし	買う	not お + 買え + し
+お待たせしました	待たす	待たせ here is the causative of 待つ, not the potential of 待たす
+# a one-kana stem is too little for an honorific frame
+おいしそう	いる	not お + い + し + そう
+# a bare 連用形 is a content verb's, not an auxiliary's after て
+いってい	言う	一定 is not 言って + い(る)
+してい	する	not して + い(る)
+# ず・ぬ・ん don't attach to the colloquial contractions (てる, ちゃう, とく)
+かいてん	書く	回転 is not 書いて(る) + ん
+いってん	言う	not 言って(る) + ん
+# Kuromoji's reading needs a rule path of the same word type
+おうだ	追う	verb + だ is not Japanese (the rule path is a na-adjective)
+つくだ	就く	same
+# a regular auxiliary (とく: といた) is not reached through 行く's special た form (行った)
+にとって	似る	not に + とく + て
+としとった	賭す	not とし + とく + た
+# found by the grammar review (2026-11-22)
+してん	する	してる + ん is not a negative
+書いてい	書く	〜てい is not a 中止形 (〜ており、 is)
+課せられた	課す	a potential form takes no passive

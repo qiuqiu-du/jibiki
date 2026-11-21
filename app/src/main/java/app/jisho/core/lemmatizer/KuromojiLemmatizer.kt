@@ -86,14 +86,16 @@ class KuromojiLemmatizer(private val tokenizer: Tokenizer) : Lemmatizer, Segment
  * Mode A: Kuromoji's context-based reading first, then every other reading from the rule
  * table. The rule table is the single source of grammar: a Kuromoji reading is kept only
  * when the rule table also reaches that dictionary form from the whole input, and it takes
- * the labels of that rule path. Kuromoji ignores trailing text it can't attach
+ * the word type and labels of that rule path. Kuromoji ignores trailing text it can't attach
  * (食べないあ -> 食べる), so without this check any extra kana would still give a lemma.
  */
 class CombinedLemmatizer(private val kuromoji: () -> KuromojiLemmatizer?, private val rules: RuleLemmatizer) : Lemmatizer {
     override fun lemmatize(text: String): List<LemmaCandidate> {
         val ruled = rules.lemmatize(text)
         val read = kuromoji()?.lemmatize(text).orEmpty().mapNotNull { c ->
-            ruleMatch(c, ruled)?.let { r -> c.copy(reasons = r.reasons, dropsPrefix = r.dropsPrefix) }
+            // The rule path decides the word type as well as the labels: おうだ is a na-adjective
+            // + だ, so Kuromoji's verb 追う must not pass as one.
+            ruleMatch(c, ruled)?.let { r -> c.copy(types = r.types, reasons = r.reasons, dropsPrefix = r.dropsPrefix) }
         }
         return read + ruled
     }

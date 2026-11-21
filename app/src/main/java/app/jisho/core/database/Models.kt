@@ -27,7 +27,8 @@ data class Candidate(
 data class Inflection(val from: String, val reasons: List<String>)
 
 /** One search_key row with the entry's parts of speech (JMdict codes). */
-data class KeyHit(val key: String, val entryId: Long, val pos: List<String>, val rank: Int)
+/** [reading]: the entry's main reading (御座る -> ござる), for checks on how the word ends. */
+data class KeyHit(val key: String, val entryId: Long, val pos: List<String>, val rank: Int, val reading: String = "")
 
 /** A search result that exists only in one dictionary (encyclopedia items, idioms...). */
 data class DictCandidate(val dictId: String, val entryId: Long, val title: String)

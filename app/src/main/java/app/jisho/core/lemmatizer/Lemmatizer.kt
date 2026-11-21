@@ -8,7 +8,7 @@ enum class LemmaSource { Kuromoji, Rules }
 /** A possible dictionary form of the input. Not trusted until [LemmaValidator] finds it in JMdict. */
 data class LemmaCandidate(
     val lemma: String,
-    /** Word types the lemma must have: v1, v5, v5k-s, v5u-s, v5aru, vk, vs, vz, adj-i, adj-na. */
+    /** Word types the lemma must have: [FINAL_TYPES]. */
     val types: Set<String>,
     /** Inflection labels from the dictionary form outward: 食べなかった -> [neg, past]. */
     val reasons: List<String>,
@@ -30,4 +30,11 @@ fun interface Segmenter {
 }
 
 /** Final word types a candidate can carry; the others (te, ta, stem, mizen) are intermediate. */
-internal val FINAL_TYPES = setOf("v1", "v5", "v5k-s", "v5u-s", "v5aru", "vk", "vs", "vz", "adj-i", "adj-na")
+internal val FINAL_TYPES = setOf("v1", "v5", "v5r", "v5r-i", "v5k-s", "v5u-s", "v5aru", "vk", "vs", "vs-s", "vz", "adj-i", "adj-na")
+
+/**
+ * A rule for v5 also takes these sub-types, which conjugate like any る godan verb outside the
+ * forms that set them apart: おる is v5 to a rule, しておらず reaches it as v5r. Not v5k-s or
+ * v5u-s: their た/て forms differ (行った, 問うた), and an auxiliary like とく is regular.
+ */
+internal val GODAN_SUBTYPES = setOf("v5r", "v5r-i", "v5aru")

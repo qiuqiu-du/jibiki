@@ -30,7 +30,7 @@ val ReasonLabels: Map<String, Int> = mapOf(
     "request" to R.string.lemma_reason_request,
     "resultative" to R.string.lemma_reason_resultative,
     "seems" to R.string.lemma_reason_seems,
-    "stem" to R.string.lemma_reason_stem,
+    "renyou" to R.string.lemma_reason_renyou,
     "tara" to R.string.lemma_reason_tara,
     "tari" to R.string.lemma_reason_tari,
     "te" to R.string.lemma_reason_te,

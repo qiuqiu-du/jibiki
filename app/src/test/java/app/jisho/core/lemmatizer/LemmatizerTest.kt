@@ -152,22 +152,15 @@ class LemmatizerTest {
         assertTrue(validator.validate(rules.lemmatize("お読みになりました")).any { it.candidate.lemma == "読む" })
     }
 
-    /**
-     * A one-kana stem can't carry an honorific frame: おいしそう is not お + い(る) + し(する) +
-     * そう, おいでになる is not お + い(る) + で... Kanji stems of one character still work.
-     */
-    @Test fun honorificFrameNeedsMoreThanOneKana() {
+    /** Over-built readings (lemma_rejects.tsv) never come out, in either mode. */
+    @Test fun overBuiltReadingsAreRejected() {
         TestPacks.assumePresent()
-        val validator = LemmaValidator(TestPacks.sharedCore)
-        for (input in listOf("おいしそう", "おいしかった", "おしまい", "ごしんぱい", "おみせ")) {
-            for (mode in LemmatizerMode.entries) {
-                val forced = validator.validate(lemmatizer(mode).lemmatize(input)).filter { it.candidate.dropsPrefix }
-                assertEquals("$mode $input", emptyList<String>(), forced.map { it.candidate.lemma })
-            }
+        val rejects = TestPacks.resourceLines("lemma_rejects.tsv").map { it.split('\t') }
+        assertTrue(rejects.size >= 15)
+        val found = LemmatizerMode.entries.flatMap { mode ->
+            rejects.filter { (input, lemma) -> lemmas(mode, input).any { lemma in it } }.map { "$mode ${it[0]} -> ${it[1]}" }
         }
-        assertTrue(validator.validate(rules.lemmatize("お見えになる")).any { it.candidate.lemma == "見える" })
-        assertTrue(validator.validate(rules.lemmatize("おみえになる")).any { it.candidate.lemma == "みえる" })
-        assertTrue(validator.validate(rules.lemmatize("お出かけになった")).any { it.candidate.lemma == "出かける" })
+        assertEquals(emptyList<String>(), found)
     }
 
     @Test fun everyReasonHasALabel() {

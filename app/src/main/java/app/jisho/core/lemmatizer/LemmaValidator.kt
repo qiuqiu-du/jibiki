@@ -24,7 +24,7 @@ class LemmaValidator(private val core: CoreDb) {
         val hits = core.lookupKeys(lookups.map { it.key }.distinct()).groupBy { it.key }
         val found = ArrayList<Pair<ValidatedLemma, Int>>()
         for (l in lookups) for (h in hits[l.key].orEmpty()) {
-            val ok = if (l.noun) "vs" in h.pos else l.candidate.types.any { accepts(it, l.candidate.lemma, h.pos) }
+            val ok = if (l.noun) "vs" in h.pos else l.candidate.types.any { accepts(it, l.candidate.lemma, h.pos, h.reading) }
             if (ok) found += ValidatedLemma(h.entryId, l.key, l.candidate) to h.rank
         }
         // Direct readings before ones that drop a prefix (おいしそう: おいしい before お + いる),
@@ -51,14 +51,15 @@ class LemmaValidator(private val core: CoreDb) {
         private val ARU_ENDINGS = listOf("さる", "ざる", "しゃる")
 
         /** Does a JMdict entry with these part-of-speech codes conjugate as [type]? */
-        fun accepts(type: String, lemma: String, pos: List<String>): Boolean = when (type) {
+        fun accepts(type: String, lemma: String, pos: List<String>, reading: String = ""): Boolean = when (type) {
             "v1" -> "v1" in pos || "v1-s" in pos
             "v5" -> GODAN_BY_ENDING[lemma.lastOrNull()].orEmpty().any { it in pos }
             "vs" -> lemma.endsWith("する") && ("vs-i" in pos || "vs-s" in pos)
             "adj-i" -> "adj-i" in pos || "adj-ix" in pos
             // JMdict tags some honorific -aru verbs as plain godan (ござる is v5r), so accept that
             // for the whole class: the verbs ending in さる・ざる・しゃる.
-            "v5aru" -> "v5aru" in pos || ("v5r" in pos && ARU_ENDINGS.any { lemma.endsWith(it) })
+            // The reading too: 御座る is ござる.
+            "v5aru" -> "v5aru" in pos || ("v5r" in pos && ARU_ENDINGS.any { lemma.endsWith(it) || reading.endsWith(it) })
             else -> type in pos // v5k-s, v5aru, vk, vz, adj-na
         }
     }

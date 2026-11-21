@@ -244,7 +244,7 @@ sealed interface AppResult<out T> {
 | `core/designsystem/DesignSystemTest` | 音调格式、正文渲染（注音、段落、链接、坏标签），并抽样渲染真实词条 |
 | `core/data/DictionaryRepositoryTest` | 罗马音和片假名输入、结果合并（完全匹配 → 原形 → 前缀）、歧义词、整句分词、词条组装 |
 | `feature/FeatureViewModelTest` | 搜索和词条页的 UiState，链接跳转的解析 |
-| `core/lemmatizer/LemmatizerTest` | 形态还原测试集 `lemma_cases.tsv`（565 条），A、B 两种模式都必须全部通过，并打印各类别准确率和第一名命中率；规则表格式、词性校验、敬语前缀、整句分词、每行候选都有活用说明 |
+| `core/lemmatizer/LemmatizerTest` | 形态还原测试集 `lemma_cases.tsv`（604 条），A、B 两种模式都必须全部通过；反例集 `lemma_rejects.tsv` 里的读法两种模式都不能出现；并打印各类别准确率和第一名命中率；规则表格式、词性校验、敬语前缀、整句分词、每行候选都有活用说明 |
 | `androidTest/DeviceRuntimeTest` | 在 Android 运行时上重跑查询键一致性向量、罗马音、正文渲染（抓 ICU 正则等平台差异），以及整个形态还原测试集（Kuromoji 从 APK 里读词典） |
 | `androidTest/DevicePerformanceTest` | 真机上候选 p95 ≤ 50 ms（含活用形和整句）、词条 p95 ≤ 150 ms；记录 Kuromoji 加载时间和内存 |
 | `androidTest/DeviceUiTest` | 所有 Compose 界面测试，一个文件、每类功能一节，用真实触摸事件、按状态判断：收藏夹拖动排序；设置页（选项写入设置、按钮文字完整不折行不带省略号、词条页按「默认展开」展开辞书、查词页按「自动弹出」决定是否聚焦）。设置写进临时 DataStore（`SettingsRepository` 可传入存储），不碰用户的设置和收藏 |

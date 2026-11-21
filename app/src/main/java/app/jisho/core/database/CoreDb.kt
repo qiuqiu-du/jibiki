@@ -69,10 +69,12 @@ class CoreDb(
     /** Exact-key lookup with parts of speech, for lemma validation. */
     fun lookupKeys(keys: List<String>): List<KeyHit> = keys.chunked(400).flatMap { chunk ->
         db.query(
-            "SELECT s.key, s.entry_id, e.pos, s.rank FROM search_key s JOIN entry e ON e.id = s.entry_id " +
+            "SELECT s.key, s.entry_id, e.pos, s.rank, " +
+                "(SELECT f.reading FROM form f WHERE f.entry_id = s.entry_id AND f.ord = 0) " +
+                "FROM search_key s JOIN entry e ON e.id = s.entry_id " +
                 "WHERE s.key IN (${chunk.indices.joinToString(",") { "?${it + 1}" }})",
             chunk,
-        ) { KeyHit(it.string(0), it.long(1), it.string(2).split(','), it.int(3)) }
+        ) { KeyHit(it.string(0), it.long(1), it.string(2).split(','), it.int(3), it.stringOrNull(4).orEmpty()) }
     }
 
     /**

@@ -30,7 +30,7 @@
     <string name="lemma_reason_causative" translatable="false">使役</string>
     <string name="lemma_reason_causative_passive" translatable="false">使役受身</string>
     <string name="lemma_reason_copula" translatable="false">断定</string>
-    <string name="lemma_reason_stem" translatable="false">連用形</string>
+    <string name="lemma_reason_renyou" translatable="false">連用形</string>
     <string name="lemma_reason_cond" translatable="false">仮定</string>
     <string name="lemma_reason_contraction" translatable="false">縮約</string>
     <string name="lemma_reason_even" translatable="false">逆接</string>
