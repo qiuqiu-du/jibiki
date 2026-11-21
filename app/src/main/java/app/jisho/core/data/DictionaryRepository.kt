@@ -168,7 +168,7 @@ class DictionaryRepository(
     private fun hintFor(ds: List<DictDb>, linksPerDict: List<List<Long>>): String {
         ds.zip(linksPerDict).forEach { (d, ids) ->
             val body = ids.firstOrNull()?.let { d.entry(it)?.body } ?: return@forEach
-            val text = plainText(body).replace(Regex("^[［〔《(（【][^］〕》)）】]*[］〕》)）】]"), "").trim()
+            val text = dropLeadingLabel(plainText(body)).trim()
             if (text.isNotEmpty()) return text.take(HINT_LENGTH)
         }
         return ""
@@ -186,12 +186,100 @@ class DictionaryRepository(
         EntryDetail(entry, definitions, baseForms)
     }
 
+    /**
+     * What a saved word shows in lists and exports: its pitch accent (raw, such as "0,2") and the
+     * first sentence of its first definition. [target]: see [app.jisho.core.userdata.WordRef].
+     */
+    suspend fun summary(target: String, reading: String): WordSummary = withContext(Dispatchers.IO) {
+        ensureOpen()
+        val parts = target.split(':')
+        when (parts[0]) {
+            "core" -> parts.getOrNull(1)?.toLongOrNull()?.let { id ->
+                val entry = core!!.entry(id) ?: return@let null
+                val body = dicts.firstNotNullOfOrNull { d -> d.entriesForCore(id).firstOrNull()?.body }
+                WordSummary(entry.accents[reading] ?: entry.accents[entry.reading], body?.let { firstSentence(it) }.orEmpty())
+            }
+            "dict" -> parts.getOrNull(2)?.toLongOrNull()?.let { id ->
+                val d = all.firstOrNull { it.dictId == parts[1] } ?: return@let null
+                WordSummary(null, d.entry(id)?.body?.let { firstSentence(it) }.orEmpty())
+            }
+            else -> null
+        } ?: WordSummary(null, "")
+    }
+
+    /**
+     * Where an imported word without a usable target leads: the JMdict entry with this spelling
+     * (and reading, if given), else a dictionary-only item, else a plain look-up.
+     */
+    suspend fun resolve(headword: String, reading: String): String {
+        val r = search(headword)
+        val exact = r.words.filter { it.exact && it.inflection == null }
+        val word = exact.firstOrNull { reading.isEmpty() || it.reading == reading } ?: exact.firstOrNull()
+        return when {
+            word != null -> "core:${word.entryId}"
+            r.dictOnly.isNotEmpty() -> r.dictOnly.first().let { "dict:${it.dictId}:${it.entryId}" }
+            else -> "lookup:$headword"
+        }
+    }
+
     /** One dictionary item by id; links inside a turned-off dictionary still open. */
     suspend fun dictEntry(dictId: String, id: Long): Pair<DictInfo, DictEntry>? = withContext(Dispatchers.IO) {
         ensureOpen()
         val d = all.firstOrNull { it.dictId == dictId } ?: return@withContext null
         d.entry(id)?.let { DictInfo(d.dictId, d.title) to it }
     }
+}
+
+/** [accent]: raw pitch accent or null; [definition]: first sentence of the first definition, "" if none. */
+data class WordSummary(val accent: String?, val definition: String)
+
+private const val SUMMARY_LENGTH = 80
+
+/**
+ * The first sentence of a definition: of its first numbered sense when it has numbered senses
+ * (before them come grammar notes: ［動バ下一］［文］た・ぶ［バ下二］《…》), without leading labels.
+ */
+internal fun firstSentence(body: String): String {
+    var text = plainText(body)
+    // Sense 1: "1", "１", "❶", "①" or a drawn circle "(1)", standing alone (not 第1音), and only
+    // where sense numbers can be: outside brackets (《…type 1》) and before any sentence ends.
+    val t = text
+    FIRST_SENSE.findAll(t).firstOrNull { m -> depthAt(t, m.range.first) == 0 && '。' !in t.substring(0, m.range.first) }
+        ?.let { text = t.substring(it.range.last + 1) }
+    while (true) {
+        val trimmed = dropLeadingLabel(text).trimStart()
+        if (trimmed == text) break
+        text = trimmed
+    }
+    val end = text.indexOf('。')
+    return (if (end >= 0) text.substring(0, end + 1) else text).take(SUMMARY_LENGTH)
+}
+
+private val FIRST_SENSE = Regex("(?:^|\\s)(?:[1１❶①]|\\(1\\))(?=\\s|[^0-9０-９])\\s*")
+private const val OPENERS = "［〔《(（【〘"
+private const val CLOSERS = "］〕》)）】〙"
+
+/**
+ * [text] without one bracketed label at its start, such as ［動ワ五（ハ四）］: brackets may nest,
+ * so the label ends where the depth returns to zero, not at the first closing bracket.
+ */
+/** How many brackets are open just before [end] in [text]. */
+private fun depthAt(text: String, end: Int): Int {
+    var depth = 0
+    for (i in 0 until end) {
+        val c = text[i]
+        if (c in OPENERS) depth++ else if (c in CLOSERS && depth > 0) depth--
+    }
+    return depth
+}
+
+internal fun dropLeadingLabel(text: String): String {
+    if (text.isEmpty() || text[0] !in OPENERS) return text
+    var depth = 0
+    text.forEachIndexed { i, c ->
+        if (c in OPENERS) depth++ else if (c in CLOSERS && --depth == 0) return text.substring(i + 1)
+    }
+    return text // never closed: leave it
 }
 
 /** [all] sorted by [DictPrefs.order]; dictionaries it doesn't name keep their default order, after it. */

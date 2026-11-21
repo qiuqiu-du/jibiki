@@ -42,6 +42,22 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    /** Settings a backup carries (not device state such as the handwriting model). */
+    suspend fun backupSettings(): Map<String, String> {
+        val prefs = context.settingsStore.data.first()
+        return listOf(lemmatizerKey, dictOrderKey, dictDisabledKey).mapNotNull { k -> prefs[k]?.let { k.name to it } }.toMap()
+    }
+
+    /** Restores what [backupSettings] saved; keys it doesn't know are ignored, missing ones reset. */
+    suspend fun restoreSettings(values: Map<String, String>) {
+        context.settingsStore.edit { prefs ->
+            listOf(lemmatizerKey, dictOrderKey, dictDisabledKey).forEach { k ->
+                val v = values[k.name]
+                if (v != null) prefs[k] = v else prefs.remove(k)
+            }
+        }
+    }
+
     /** Whether the handwriting model was found last time (lets the panel skip ML Kit's slow first check). */
     suspend fun handwritingModelReady(): Boolean = context.settingsStore.data.first()[inkModelReadyKey] ?: false
 

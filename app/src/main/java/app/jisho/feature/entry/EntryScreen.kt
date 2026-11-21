@@ -1,6 +1,17 @@
 package app.jisho.feature.entry
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.ui.draw.clip
+import app.jisho.feature.favorites.FolderPickerSheet
+import app.jisho.core.designsystem.pageSwipe
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -69,6 +80,9 @@ import app.jisho.core.designsystem.gaijiContent
 import app.jisho.core.designsystem.badgeContent
 import app.jisho.core.designsystem.DefaultLabelStyle
 import app.jisho.DebugOptions
+import app.jisho.core.userdata.Folder
+import app.jisho.core.userdata.UserStore
+import app.jisho.core.userdata.WordRef
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -81,32 +95,155 @@ sealed interface EntryTarget {
     data class Lookup(val key: String) : EntryTarget
 }
 
-sealed interface EntryUiState {
-    data object Loading : EntryUiState
-    data object NotFound : EntryUiState
-    data class Word(
-        val core: CoreEntry,
-        val sections: List<Pair<DictInfo, List<DictEntry>>>,
-        val inflection: Inflection? = null,
-        val baseForms: List<Candidate> = emptyList(),
-    ) : EntryUiState
-    data class Single(val dict: DictInfo, val entry: DictEntry) : EntryUiState
+/** The top of an entry page: the word, its readings with pitch accents, labels, other spellings. */
+data class WordHead(
+    val headword: String,
+    val readings: List<String> = emptyList(),
+    /** reading -> raw accent ("2", "0,2", "1+1") */
+    val accents: Map<String, String> = emptyMap(),
+    val common: Boolean = false,
+    /** JMdict part-of-speech codes */
+    val pos: List<String> = emptyList(),
+    val otherForms: List<String> = emptyList(),
+    /** Reached from an inflected form (食べなかった -> 食べる). */
+    val inflection: Inflection? = null,
+)
+
+/**
+ * Everything one entry page shows, whatever it came from: a JMdict word, one dictionary item,
+ * or a word the packs don't have (a phrase, a new word). One shape drawn by one layout, so a
+ * change to the page (another web tab, say) applies to every kind of word at once.
+ */
+data class EntryPage(
+    /** How favorites and history store the word. */
+    val word: WordRef,
+    /** null for one dictionary item, whose title heads its own section. */
+    val head: WordHead?,
+    /** Dictionaries with something to show (empty: "no definition"). */
+    val sections: List<Pair<DictInfo, List<DictEntry>>>,
+    /** Spellings the web tabs try, best first (see [webSpellings]). */
+    val webQuery: List<String>,
+    /** For an undefined word: dictionary forms it may be an inflection of. */
+    val baseForms: List<Candidate> = emptyList(),
+) {
+    companion object {
+        fun of(core: CoreEntry, sections: List<Pair<DictInfo, List<DictEntry>>>, inflection: Inflection?, baseForms: List<Candidate>) = EntryPage(
+            WordRef(core.headword, core.reading, "core:${core.id}"),
+            WordHead(
+                core.headword,
+                core.forms.map { it.reading }.distinct(),
+                core.accents,
+                core.isCommon,
+                core.pos,
+                core.forms.mapNotNull { it.kanji }.distinct().filter { it != core.headword },
+                inflection,
+            ),
+            sections.filter { it.second.isNotEmpty() },
+            webSpellings(core.headword, core.forms.map { it.kanji to it.reading }),
+            baseForms,
+        )
+
+        fun of(dict: DictInfo, entry: DictEntry): EntryPage {
+            val word = titleWord(entry.title)
+            val reading = titleReading(entry.title)
+            return EntryPage(
+                WordRef(word, reading.orEmpty(), "dict:${dict.id}:${entry.id}"),
+                head = null,
+                listOf(dict to listOf(entry)),
+                listOfNotNull(word, reading).distinct(),
+            )
+        }
+
+        /** A word the offline packs don't have; [reading] as saved before, else "". */
+        fun unknown(word: String, reading: String) = EntryPage(
+            WordRef(word, reading, "lookup:$word"),
+            WordHead(word, listOf(reading).filter { it.isNotEmpty() }),
+            emptyList(),
+            listOf(word, reading).filter { it.isNotEmpty() }.distinct(),
+        )
+    }
 }
 
-class EntryViewModel(private val repository: DictionaryRepository, target: EntryTarget) : ViewModel() {
+sealed interface EntryUiState {
+    data object Loading : EntryUiState
+    /** A broken link or saved id (not a word that merely has no offline data: that is a page too). */
+    data object NotFound : EntryUiState
+    data class Ready(val page: EntryPage) : EntryUiState
+}
+
+class EntryViewModel(
+    private val repository: DictionaryRepository,
+    target: EntryTarget,
+    /** Favorites and history; null in tests that only check what is shown. */
+    private val user: UserStore? = null,
+) : ViewModel() {
     private val _state = MutableStateFlow<EntryUiState>(EntryUiState.Loading)
     val state: StateFlow<EntryUiState> = _state
 
+    /** The word as favorites and history store it (null until loaded, or not found). */
+    private val _word = MutableStateFlow<WordRef?>(null)
+
+    /** Folders the word is in (empty: not a favorite). */
+    private val _inFolders = MutableStateFlow<Set<Long>>(emptySet())
+    val inFolders: StateFlow<Set<Long>> = _inFolders
+
+    private val _folders = MutableStateFlow<List<Folder>>(emptyList())
+    val folders: StateFlow<List<Folder>> = _folders
+
     init {
-        viewModelScope.launch { _state.value = load(target) }
+        viewModelScope.launch {
+            val s = load(target)
+            _state.value = s
+            val word = (s as? EntryUiState.Ready)?.page?.word ?: return@launch
+            _word.value = word
+            user ?: return@launch
+            user.recordHistory(word)
+            // Follows changes made elsewhere too (folder pages, an import).
+            user.version.collect {
+                _inFolders.value = user.foldersOf(word)
+                _folders.value = user.folders()
+                lastUsed = user.lastUsedFolder()
+            }
+        }
+    }
+
+    private var lastUsed: Long? = null
+
+    /**
+     * Star tapped. A word not saved yet goes to the folder used last, and that folder's name is
+     * returned (for "saved to …"); null means show the folder list instead: the word is saved
+     * already, or there is no folder to save to yet.
+     */
+    fun star(): String? {
+        val word = _word.value ?: return null
+        if (_inFolders.value.isNotEmpty()) return null
+        val folder = _folders.value.firstOrNull { it.id == lastUsed } ?: return null
+        _inFolders.value = setOf(folder.id) // at once, before the write lands
+        viewModelScope.launch { user?.addFavorite(word, folder.id) }
+        return folder.name
+    }
+
+    fun toggleFolder(id: Long) {
+        val word = _word.value ?: return
+        val next = _inFolders.value.let { if (id in it) it - id else it + id }
+        _inFolders.value = next
+        viewModelScope.launch { user?.setFolders(word, next) }
+    }
+
+    fun createFolder(name: String) {
+        val word = _word.value ?: return
+        viewModelScope.launch {
+            val id = user?.createFolder(name) ?: return@launch
+            user.setFolders(word, _inFolders.value + id)
+        }
     }
 
     private suspend fun load(target: EntryTarget): EntryUiState = when (target) {
         is EntryTarget.Core -> repository.entry(target.id)
-            ?.let { EntryUiState.Word(it.core, it.definitions.filter { d -> d.second.isNotEmpty() }, target.inflection, it.baseForms) }
+            ?.let { EntryUiState.Ready(EntryPage.of(it.core, it.definitions, target.inflection, it.baseForms)) }
             ?: EntryUiState.NotFound
         is EntryTarget.Dict -> repository.dictEntry(target.dictId, target.id)
-            ?.let { EntryUiState.Single(it.first, it.second) } ?: EntryUiState.NotFound
+            ?.let { EntryUiState.Ready(EntryPage.of(it.first, it.second)) } ?: EntryUiState.NotFound
         is EntryTarget.Lookup -> {
             val r = repository.search(target.key)
             // Links may point at inflected forms; their dictionary form counts as a match.
@@ -115,7 +252,9 @@ class EntryViewModel(private val repository: DictionaryRepository, target: Entry
             when {
                 word != null -> load(EntryTarget.Core(word.entryId, word.inflection))
                 dictOnly != null -> load(EntryTarget.Dict(dictOnly.dictId, dictOnly.entryId))
-                else -> EntryUiState.NotFound
+                else -> target.key.trim().takeIf { it.isNotEmpty() }
+                    ?.let { EntryUiState.Ready(EntryPage.unknown(it, user?.lookupReading(it).orEmpty())) }
+                    ?: EntryUiState.NotFound
             }
         }
     }
@@ -130,7 +269,8 @@ fun EntryScreen(
     onOpenEntry: (Candidate) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val query = webQuery(state)
+    val page = (state as? EntryUiState.Ready)?.page
+    val query = page?.webQuery
     val webViews = rememberWebViews()
     if (query != null) WarmUpWebView()
     // Offline, コトバンク, Weblio side by side: swipe sideways or tap the floating tabs.
@@ -148,7 +288,34 @@ fun EntryScreen(
     }
     LaunchedEffect(pager.currentPage) { tabsShown = true }
     webViews.onScroll = { down -> tabsShown = !down }
-    Scaffold(topBar = { EntryTopBar(onBack) }) { padding ->
+    // Favorites: tap the star to save to the folder used last; tap again or hold it for the folder list.
+    val inFolders by viewModel.inFolders.collectAsStateWithLifecycle()
+    val folders by viewModel.folders.collectAsStateWithLifecycle()
+    var picking by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val changeText = stringResource(R.string.favorites_change)
+    val canSave = page != null
+    Scaffold(
+        topBar = {
+            EntryTopBar(
+                onBack,
+                starred = inFolders.isNotEmpty(),
+                starEnabled = canSave,
+                onStar = {
+                    val folder = viewModel.star()
+                    if (folder != null) scope.launch {
+                        snackbar.currentSnackbarData?.dismiss()
+                        val text = context.getString(R.string.favorites_added, folder)
+                        val r = snackbar.showSnackbar(text, changeText, duration = SnackbarDuration.Short)
+                        if (r == SnackbarResult.ActionPerformed) picking = true
+                    } else picking = true
+                },
+                onStarLong = { if (canSave) picking = true },
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbar, Modifier.padding(bottom = if (query != null) 64.dp else 0.dp)) },
+    ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).nestedScroll(hideOnScroll).pageSwipe(pager, query != null)) {
             HorizontalPager(pager, Modifier.fillMaxSize(), userScrollEnabled = false) { page ->
                 val tab = EntryTab.entries[page]
@@ -171,13 +338,20 @@ fun EntryScreen(
             }
         }
     }
+    if (picking) FolderSheet(viewModel, folders, inFolders) { picking = false }
 }
 
 private const val SCROLL_SLOP = 2f
 
-/** Top row: back on the left, the favorite star on the right (favorites come in M4). */
 @Composable
-private fun EntryTopBar(onBack: () -> Unit) {
+private fun FolderSheet(viewModel: EntryViewModel, folders: List<Folder>, inFolders: Set<Long>, onDismiss: () -> Unit) {
+    FolderPickerSheet(folders, inFolders, onToggle = viewModel::toggleFolder, onCreate = viewModel::createFolder, onDismiss = onDismiss)
+}
+
+/** Top row: back on the left, the favorite star on the right (filled when the word is saved). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EntryTopBar(onBack: () -> Unit, starred: Boolean, starEnabled: Boolean, onStar: () -> Unit, onStarLong: () -> Unit) {
     Row(Modifier.fillMaxWidth().statusBarsPadding().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) {
             Icon(
@@ -187,8 +361,17 @@ private fun EntryTopBar(onBack: () -> Unit) {
             )
         }
         Spacer(Modifier.weight(1f))
-        IconButton(onClick = {}, enabled = false) { // reserved: favorites (M4)
-            Icon(StarOutline, contentDescription = stringResource(R.string.entry_favorite))
+        // IconButton has no long press: the same 48 dp round target, built by hand.
+        Box(
+            Modifier.size(48.dp).clip(CircleShape)
+                .combinedClickable(enabled = starEnabled, onLongClick = onStarLong, onClick = onStar),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (starred) Icons.Filled.Star else StarOutline,
+                contentDescription = stringResource(if (starred) R.string.entry_unfavorite else R.string.entry_favorite),
+                tint = if (starred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -206,37 +389,25 @@ private fun OfflineContent(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            when (val s = state) {
+            when (state) {
                 EntryUiState.Loading -> Unit
-                EntryUiState.NotFound -> Text(stringResource(R.string.entry_no_definition))
-                is EntryUiState.Word -> {
-                    WordHeader(s.core, s.inflection)
-                    if (s.sections.isEmpty()) {
-                        Text(
-                            stringResource(R.string.entry_no_definition),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (s.baseForms.isNotEmpty()) BaseForms(s.baseForms, onOpenEntry)
+                EntryUiState.NotFound -> Text(stringResource(R.string.entry_not_found))
+                is EntryUiState.Ready -> {
+                    val p = state.page
+                    p.head?.let { WordHeader(it) }
+                    if (p.sections.isEmpty()) {
+                        Text(stringResource(R.string.entry_no_definition), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (p.baseForms.isNotEmpty()) BaseForms(p.baseForms, onOpenEntry)
                     }
-                    s.sections.forEachIndexed { i, (dict, entries) ->
+                    p.sections.forEachIndexed { i, (dict, entries) ->
                         DictSection(dict, entries, initiallyExpanded = i == 0) { href ->
                             followLink(dict.id, href, onOpenDictEntry, onLookup)
                         }
                     }
                 }
-                is EntryUiState.Single -> DictSection(s.dict, listOf(s.entry), initiallyExpanded = true) { href ->
-                    followLink(s.dict.id, href, onOpenDictEntry, onLookup)
-                }
             }
             Spacer(Modifier.height(bottomSpace)) // room for the floating tabs
         }
-}
-
-/** The spellings the web tabs try, best first (see [webSpellings]); null: no web tabs. */
-private fun webQuery(state: EntryUiState): List<String>? = when (state) {
-    is EntryUiState.Word -> webSpellings(state.core.headword, state.core.forms.map { it.kanji to it.reading })
-    is EntryUiState.Single -> listOfNotNull(titleWord(state.entry.title), titleReading(state.entry.title)).distinct()
-    else -> null
 }
 
 private fun followLink(dictId: String, href: String, onOpenDictEntry: (String, Long) -> Unit, onLookup: (String) -> Unit) {
@@ -274,40 +445,47 @@ private fun BaseForms(forms: List<Candidate>, onOpen: (Candidate) -> Unit) {
 }
 
 @Composable
-private fun WordHeader(e: CoreEntry, inflection: Inflection?) {
+private fun WordHeader(h: WordHead) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(e.headword, style = MaterialTheme.typography.displaySmall.ja())
+        Text(h.headword, style = MaterialTheme.typography.displaySmall.ja())
         // 食べなかった ← 食べる（否定・过去）
-        inflection?.let { inf ->
+        h.inflection?.let { inf ->
             val reasons = reasonText(inf.reasons)
             Text(
-                if (reasons.isEmpty()) stringResource(R.string.entry_inflection, inf.from, e.headword)
-                else stringResource(R.string.entry_inflection_reasons, inf.from, e.headword, reasons),
+                if (reasons.isEmpty()) stringResource(R.string.entry_inflection, inf.from, h.headword)
+                else stringResource(R.string.entry_inflection_reasons, inf.from, h.headword, reasons),
                 style = MaterialTheme.typography.bodyMedium.ja(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        // One line per distinct reading, each with its pitch numbers.
-        e.forms.map { it.reading }.distinct().forEach { reading ->
+        // One line per reading, each with its pitch numbers. With several readings every line
+        // names its reading (so the lines line up); a lone reading equal to the headword (kana
+        // words) shows just the numbers.
+        h.readings.forEach { reading ->
+            val named = h.readings.size > 1 || reading != h.headword
+            val accent = formatAccent(h.accents[reading])
+            if (!named && accent.isEmpty()) return@forEach
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (reading != e.headword) {
+                if (named) {
                     Text(reading, style = MaterialTheme.typography.titleMedium.ja(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text(
-                    "  " + formatAccent(e.accents[reading]),
+                if (accent.isNotEmpty()) Text(
+                    (if (named) "  " else "") + accent,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (e.isCommon) Chip(stringResource(R.string.entry_common), highlight = true)
-            posLabels(e.pos).forEach { Chip(stringResource(it)) }
+        val chips = posLabels(h.pos)
+        if (h.common || chips.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (h.common) Chip(stringResource(R.string.entry_common), highlight = true)
+                chips.forEach { Chip(stringResource(it)) }
+            }
         }
-        val others = e.forms.mapNotNull { it.kanji }.distinct().filter { it != e.headword }
-        if (others.isNotEmpty()) {
+        if (h.otherForms.isNotEmpty()) {
             Text(
-                stringResource(R.string.entry_other_forms, others.joinToString("・")),
+                stringResource(R.string.entry_other_forms, h.otherForms.joinToString("・")),
                 style = MaterialTheme.typography.bodyMedium.ja(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

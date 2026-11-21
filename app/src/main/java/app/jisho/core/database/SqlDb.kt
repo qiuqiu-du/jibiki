@@ -22,3 +22,10 @@ interface SqlRow {
 
 fun SqlDb.meta(key: String): String? =
     query("SELECT value FROM meta WHERE key = ?", listOf(key)) { it.string(0) }.firstOrNull()
+
+/** A database the app writes (user.db, the Anki export). Args: String, Long, Int, ByteArray or null. */
+interface WritableDb : SqlDb {
+    fun exec(sql: String, args: List<Any?> = emptyList())
+    /** Runs [block] in one transaction: all its writes happen, or (on an exception) none. */
+    fun <T> transaction(block: () -> T): T
+}

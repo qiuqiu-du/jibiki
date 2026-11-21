@@ -25,6 +25,7 @@ import app.jisho.feature.search.HandwritingRecognizer
 import app.jisho.feature.search.HandwritingViewModel
 import app.jisho.feature.search.InkModelMemory
 import app.jisho.feature.settings.SettingsScreen
+import app.jisho.feature.settings.BackupViewModel
 import app.jisho.feature.settings.SettingsViewModel
 import app.jisho.core.database.Inflection
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import app.jisho.feature.favorites.FavoritesScreen
+import app.jisho.feature.favorites.FavoritesViewModel
+import app.jisho.feature.favorites.FolderScreen
+import app.jisho.feature.favorites.FolderViewModel
+import app.jisho.feature.favorites.UserFiles
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -61,6 +68,18 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import app.jisho.R
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import app.jisho.core.designsystem.pageSwipe
+import kotlinx.coroutines.launch
 
 private const val TRANSITION_MS = 200
 
@@ -68,6 +87,8 @@ private object Routes {
     const val IMPORT = "import"
     const val SEARCH = "search"
     const val SETTINGS = "settings"
+    const val FOLDER = "folder/{id}"
+    fun folder(id: Long) = "folder/$id"
     const val ENTRY = "entry/{id}?from={from}&how={how}"
     const val DICT = "dict/{dictId}/{id}"
     const val LOOKUP = "lookup/{key}"
@@ -81,6 +102,17 @@ private object Routes {
 private fun entryRoute(c: app.jisho.core.database.Candidate): String =
     c.inflection?.let { Routes.entry(c.entryId, it.from, it.reasons) } ?: Routes.entry(c.entryId)
 
+/** Where a saved word ([app.jisho.core.userdata.WordRef.target]) opens. */
+private fun targetRoute(target: String): String? {
+    val p = target.split(':', limit = 3)
+    return when (p[0]) {
+        "core" -> p.getOrNull(1)?.toLongOrNull()?.let { Routes.entry(it) }
+        "dict" -> p.getOrNull(2)?.toLongOrNull()?.let { Routes.dict(p[1], it) }
+        "lookup" -> p.getOrNull(1)?.let { Routes.lookup(target.removePrefix("lookup:")) }
+        else -> null
+    }
+}
+
 private val CreationExtras.app: JishoApp get() = this[APPLICATION_KEY] as JishoApp
 
 @Composable
@@ -92,15 +124,12 @@ fun AppNavHost(
     packsReady: Boolean,
     initialQuery: String = "",
     openDictEntry: String? = null,
-    openSettings: Boolean = false,
+    /** Debug: "settings" or "favorites" opens that tab (the search field's keyboard covers the bottom bar). */
+    openTab: String? = null,
     openBadgeSamples: Boolean = false,
 ) {
     if (openBadgeSamples) { app.jisho.feature.settings.BadgeSamples(); return }
     val nav = rememberNavController()
-    // Debug: `--es tab settings` opens the settings page (the search field's keyboard covers the bottom bar).
-    androidx.compose.runtime.LaunchedEffect(openSettings) {
-        if (openSettings && packsReady) nav.navigate(Routes.SETTINGS) { launchSingleTop = true }
-    }
     // Debug: "meikyo3:51920" opens that dictionary entry on top of the search screen.
     androidx.compose.runtime.LaunchedEffect(openDictEntry) {
         val (d, id) = openDictEntry?.split(':')?.takeIf { it.size == 2 } ?: return@LaunchedEffect
@@ -122,30 +151,47 @@ fun AppNavHost(
             }
         }
         composable(Routes.SEARCH) {
-            TopLevel(nav, Routes.SEARCH) {
-                SearchScreen(
-                    viewModel = appViewModel { SearchViewModel(app.repository, initialQuery, refresh = app.resultsVersion) },
-                    handwriting = appViewModel {
-                        val settings = app.settings
-                        HandwritingViewModel(HandwritingRecognizer(), object : InkModelMemory {
-                            override suspend fun wasReady() = settings.handwritingModelReady()
-                            override suspend fun remember(ready: Boolean) = settings.setHandwritingModelReady(ready)
-                        })
-                    },
-                    onOpenEntry = { c -> nav.navigate(entryRoute(c)) },
-                    onOpenDictEntry = { d, id -> nav.navigate(Routes.dict(d, id)) },
-                    onLookup = { nav.navigate(Routes.lookup(it)) },
-                )
+            // Search, favorites and settings side by side: swipe or tap the bottom bar.
+            val startPage = when (openTab) { "favorites" -> 1; "settings" -> 2; else -> 0 }
+            Home(startPage) { page, active ->
+                when (page) {
+                    0 -> SearchScreen(
+                        viewModel = appViewModel { SearchViewModel(app.repository, initialQuery, refresh = app.resultsVersion, user = app.userStore) },
+                        handwriting = appViewModel {
+                            val settings = app.settings
+                            HandwritingViewModel(HandwritingRecognizer(), object : InkModelMemory {
+                                override suspend fun wasReady() = settings.handwritingModelReady()
+                                override suspend fun remember(ready: Boolean) = settings.setHandwritingModelReady(ready)
+                            })
+                        },
+                        onOpenEntry = { c -> nav.navigate(entryRoute(c)) },
+                        onOpenDictEntry = { d, id -> nav.navigate(Routes.dict(d, id)) },
+                        onLookup = { nav.navigate(Routes.lookup(it)) },
+                        onOpenTarget = { t -> targetRoute(t)?.let { nav.navigate(it) } },
+                        active = active,
+                    )
+                    1 -> FavoritesScreen(appViewModel { FavoritesViewModel(app.userStore, app.transfer, UserFiles(app)) }) { id ->
+                        nav.navigate(Routes.folder(id))
+                    }
+                    else -> SettingsScreen(
+                        appViewModel { SettingsViewModel(app.settings, app.repository) },
+                        appViewModel { BackupViewModel(app.backups) },
+                    ) { nav.navigate(Routes.IMPORT) }
+                }
             }
         }
-        composable(Routes.SETTINGS) {
-            TopLevel(nav, Routes.SETTINGS) {
-                SettingsScreen(appViewModel { SettingsViewModel(app.settings, app.repository) }) { nav.navigate(Routes.IMPORT) }
-            }
+        composable(Routes.FOLDER, listOf(navArgument("id") { type = NavType.LongType })) {
+            val id = it.arguments!!.getLong("id")
+            FolderScreen(
+                appViewModel("folder$id") { FolderViewModel(id, app.userStore, app.repository) },
+                folderId = id,
+                onBack = { nav.popBackStack() },
+                onOpenTarget = { t -> targetRoute(t)?.let { r -> nav.navigate(r) } },
+            )
         }
         val entryCallbacks: @Composable (EntryTarget, String) -> Unit = { target, key ->
             EntryScreen(
-                viewModel = appViewModel(key) { EntryViewModel(app.repository, target) },
+                viewModel = appViewModel(key) { EntryViewModel(app.repository, target, app.userStore) },
                 onBack = { nav.popBackStack() },
                 onOpenDictEntry = { d, id -> nav.navigate(Routes.dict(d, id)) },
                 onLookup = { nav.navigate(Routes.lookup(it)) },
@@ -181,41 +227,56 @@ fun AppNavHost(
     }
 }
 
-/** Search and settings share the bottom bar (favorites joins in M4). */
+/**
+ * The three main pages side by side (search, favorites, settings): switched by the bottom bar
+ * or by swiping, with the same direction rule as the entry page's tabs ([pageSwipe]). All three
+ * stay composed, so each keeps its state (typed text, scroll position) while away.
+ * [content]: (page, active) -> the page; active is true for the page in view.
+ */
 @Composable
-private fun TopLevel(nav: NavHostController, route: String, content: @Composable () -> Unit) {
+private fun Home(startPage: Int, content: @Composable (Int, Boolean) -> Unit) {
+    val pager = rememberPagerState(initialPage = startPage) { HOME_PAGES.size }
+    val scope = rememberCoroutineScope()
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
+    // Leaving the search page: put the keyboard away.
+    LaunchedEffect(pager.currentPage) {
+        if (pager.currentPage != 0) { keyboard?.hide(); focus.clearFocus() }
+    }
+    // Back on favorites or settings returns to search, as before.
+    BackHandler(pager.currentPage != 0) { scope.launch { pager.animateScrollToPage(0) } }
     Scaffold(
         bottomBar = {
-            BottomBar(
-                items = listOf(
-                    Triple(Routes.SEARCH, Icons.Default.Search, R.string.nav_search),
-                    Triple(Routes.SETTINGS, Icons.Default.Settings, R.string.nav_settings),
-                ),
-                selected = route,
-            ) { r ->
-                if (r != route) nav.navigate(r) {
-                    popUpTo(Routes.SEARCH) { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            }
+            BottomBar(HOME_PAGES, selected = pager.currentPage) { i -> scope.launch { pager.animateScrollToPage(i) } }
         },
     ) { padding ->
-        Box(Modifier.padding(padding).consumeWindowInsets(padding)) { content() }
+        Box(Modifier.padding(padding).consumeWindowInsets(padding).pageSwipe(pager, enabled = true)) {
+            HorizontalPager(pager, Modifier.fillMaxSize(), userScrollEnabled = false, beyondViewportPageCount = HOME_PAGES.size) { page ->
+                content(page, page == pager.settledPage)
+            }
+        }
     }
 }
 
+private val HOME_PAGES = listOf(
+    Icons.Default.Search to R.string.nav_search,
+    Icons.Default.Star to R.string.nav_favorites,
+    Icons.Default.Settings to R.string.nav_settings,
+)
+
 /** Slim bar: hairline on top, selection shown by color only (no pill indicator). */
 @Composable
-private fun BottomBar(items: List<Triple<String, ImageVector, Int>>, selected: String, onSelect: (String) -> Unit) {
+private fun BottomBar(items: List<Pair<ImageVector, Int>>, selected: Int, onSelect: (Int) -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.navigationBarsPadding()) {
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
             Row(Modifier.fillMaxWidth().height(56.dp)) {
-                items.forEach { (r, icon, label) ->
-                    val color = if (r == selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                items.forEachIndexed { i, (icon, label) ->
+                    val color by animateColorAsState(
+                        if (i == selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, label = "tab",
+                    )
                     Column(
-                        Modifier.weight(1f).fillMaxHeight().selectable(selected = r == selected, role = Role.Tab) { onSelect(r) },
+                        Modifier.weight(1f).fillMaxHeight().selectable(selected = i == selected, role = Role.Tab) { onSelect(i) },
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {

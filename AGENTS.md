@@ -24,7 +24,8 @@
 dict/
 ├── AGENTS.md / Architecture.md
 ├── docs/
-│   └── design-spec.md   设计明细文档（唯一维护版本）
+│   ├── design-spec.md   设计明细文档（唯一维护版本）
+│   └── moji-import.md   从 MOJi辞書 导出收藏的方法和接口记录
 ├── dictionaries/    原始辞书 .mdx/.mdd、Yomitan .zip、NHK .json（约 3 GB，只读，不提交、不外传）
 │   ├── daijisen/        デジタル大辞泉（主辞典）
 │   ├── meikyo3/         明鏡国語辞典 第三版（辅助辞典）
@@ -34,7 +35,11 @@ dict/
 │   ├── shinmeikai7/     新明解国語辞典 第七版（旧版对照）
 │   ├── nhk-accent/      NHK アクセント辞典（1998年旧版对照）
 │   ├── daijirin3/       大辞林 第三版（旧版对照）
-│   └── shogakukan-jc/   小学館日中辞典 tyuka 版 / V2 版（后续版本）
+│   ├── shogakukan-jc/   小学館日中辞典 tyuka 版 / V2 版（旧版对照）
+│   ├── shogakukan-jc3/  小学館日中辞典 第三版（后续版本）
+│   ├── shinseiki-jc/    外研社 新世纪日汉双解大辞典（后续版本）
+│   ├── gendai-jc/       现代日汉双解词典 修订版（后续版本）
+│   └── kodansha-jc/     讲谈社 日本語大辞典 / 日汉大辞典 双解版（后续版本）
 ├── sources/         自动下载的开放数据：JMdict_e.gz、Kanjium accents.txt（不提交）
 ├── tools/           电脑端 Python 脚本：.mdx / .zip / .json → SQLite 数据包
 ├── datapacks/       生成的数据包（不提交，用 adb push 到手机）
@@ -50,7 +55,7 @@ dict/
 | M1 能查词 | 工程搭建、数据包导入、搜索、词条页、音调 | ✅ 2026-11-20 用户验收通过（候选 p95 9.3 ms、词条 p95 3.4 ms、release APK 3.0 MB） |
 | M2 查得准 | Kuromoji 和规则表两种还原器、JMdict 校验、手写、测试集 | ✅ 2026-11-20 用户验收通过（测试集 565 条两种模式全过、候选 p95 9–14.5 ms、冷启动约 510 ms、release APK 25.9 MB） |
 | M3 释义完善 | 辞书管理、释义排版和外字、网页页签 | ✅ 2026-11-20 用户验收通过（外字无占位、编号由 App 绘制、词条 p95 1.8 ms、release APK 26.0 MB） |
-| M4 收藏完善 | 收藏夹、导出、备份恢复、历史 | ⬜ |
+| M4 收藏完善 | 收藏夹、导出导入、备份恢复、历史 | ✅ 2026-11-21 用户验收通过（release APK 25.0 MB；备份往返、Anki 导入已实测；MOJi 收藏 2914 词已导入；收藏夹拖动排序、左滑删除可撤销） |
 
 完成一个阶段后，更新这张表和设计文档里的里程碑表格（记录 APK 大小、数据包大小、冷启动时间）。
 
@@ -111,9 +116,11 @@ scripts/test-jvm.sh                              # 只用电脑：数据包检�
 scripts/test-device.sh                           # 需要手机：真机测试 + 打印手机上测到的性能数值
 ./gradlew :app:installDebug                      # 编译并安装到手机
 ./gradlew :app:connectedDebugAndroidTest         # 真机测试：Android 运行时兼容性 + 性能（需要数据包已在 App 里）
+./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.jisho.DeviceUiTest
+                                                 # 只跑界面测试（约 1 分钟）
 ./gradlew :app:assembleRelease                   # release 包（约 3 MB，用 debug 签名，只给自己装）
 adb shell am start -S -n app.jisho/.MainActivity --es q 食べる   # debug 版：启动并预填搜索词
-adb shell am start -S -n app.jisho/.MainActivity --es tab settings   # debug 版：直接打开设置页（搜索框的键盘会挡住底栏）
+adb shell am start -S -n app.jisho/.MainActivity --es tab settings   # debug 版：直接打开设置页（搜索框的键盘会挡住底栏）；favorites 打开收藏页（三个主页面在同一个可左右滑动的 Home 里）
 adb shell am start -S -n app.jisho/.MainActivity --es tab badges     # debug 版：编号样张（方框一～二十、圆圈 1～99，浅色和深色）
 adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es labelStyle Bracket
                                                  # debug 版：直接打开某辞书词条；可切换标签样式对比截图
@@ -163,6 +170,9 @@ adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es la
 - **手机输入法**：手机默认是拼音输入法，`adb shell input text` 打出的字母会进入拼音候选，不会直接进搜索框。验证搜索用上面的 `--es q` 启动参数。
 - **不要在手机上按返回键或乱点**：用户可能正在用手机；返回键会退出 App 把别的应用切到前台。MagicOS 每次 `adb install` 后会弹出安装安全检查页，只点「完成」，不要点里面的「一键修复」「清理」。
 - **界面交互由用户验收**：自动化验证优先用 JVM 测试和真机测试（见 Architecture.md 第 8 节），少用截图点屏。
+  - 手势类问题（拖动、滑动、长按）写 Compose 界面测试（`createComposeRule` + `performTouchInput`，**全部放在 `DeviceUiTest.kt` 一个文件里**，每类功能一节）：在单独的测试界面里用真实触摸事件，按列表顺序、滚动位置判断对错，不碰用户数据，几秒一个用例。修之前先让测试在旧代码上失败，确认复现了问题。依赖只进测试包（Espresso 要 3.7.0，Compose 默认带的 3.5 在 API 37 上注入不了触摸）。
+  - 需要看真 App 时，用 `adb shell uiautomator dump` 读出屏幕上的文字和坐标（Compose 的文字也在里面），比截图快、能直接算点击位置；只有看颜色、对齐时才截图。
+- **拖动排序（`Reorder.kt`）**：LazyColumn 按 key 记住第一行，把行拖进或拖出第一个可见位置时，列表会跟着那一行滚走，所以交换时用 `requestScrollToItem` 按序号保持位置；靠边自动滚动只在手指朝那个方向移动过之后才开始。
 - **zstd-jni 版本固定在 1.5.7-12**：1.5.7-14 起要求 compileSdk 37，而 AGP 8.13 最高只支持 36。
 - **改了 core.db 表结构**：要同时升 `tools/build_core.py` 的 `CORE_SCHEMA_VERSION` 和 `DataPackManager.CORE_SCHEMA_VERSION`；手机上需要重新推送并导入。
 - **JVM 测试通过 ≠ 手机上能跑**：Android 的正则引擎是 ICU，不支持 `(?U)` 这类桌面 Java 的写法，曾导致一输入就闪退。纯 Kotlin 代码里用到正则、`java.text`、字符集的，都要在 `DeviceRuntimeTest` 里在真机上跑一遍。
@@ -170,6 +180,10 @@ adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es la
 - **荣耀手机的 logcat 是加密的**（显示为 `(HKS)…(HKE)`）：查闪退用 `adb shell dumpsys dropbox --print data_app_crash`；测试数据写进 App 私有目录的文件，再用 `run-as` 读出来（`test-device.sh` 就是这么做的），不要依赖 `Log`。
 - **网页页签**：コトバンク 用 `/word/写法` 直接跳到词条，但它只收录部分写法（「舐める」404，「嘗める」「なめる」才有），所以 404 时依次试 `webSpellings` 给出的其他汉字写法和读音，全部 404 才开搜索页（搜索页带验证参数，必须用户点「検索」，不要用脚本代点；搜索页不隐藏顶栏，否则看不到搜索框）。两站的广告和「看广告才能继续」弹窗由 `AdBlock.kt` 屏蔽（拦截广告域名 + 隐藏广告位和弹窗）；弹窗来自 `fundingchoicesmessages.google.com`。两站和查词无关的部分（顶栏、关联词、排行、页脚等）按站点写在 `EntryTab.clutter`，同一套隐藏样式注入。验证弹窗时先清 App 的网页 Cookie（`adb shell run-as app.jisho rm -rf app_webview`），否则「已看过广告」的 24 小时记录会让弹窗本来就不出现。
 - **WebView 第一次启动很慢、深色下会白闪**：每次 App 运行后第一次创建 WebView 要在主线程上花几百毫秒，期间整个界面卡住。`WarmUpWebView` 在词条页显示 0.5 秒后提前启动；`WebPage` 先画背景和进度条，下一帧再创建 WebView。WebView 画出第一帧前是白的，所以先设 `alpha = 0`，`onPageCommitVisible` 后淡入；深色主题下开启 `isAlgorithmicDarkeningAllowed`（API 33+）让网页也变暗。词条页三个页签放在 `HorizontalPager` 里，pager 自带的滑动关掉，改用 `PageSwipe.kt` 统一判断方向（Pager 自带的只看横向位移，看不到 WebView 内部的竖向滚动，网页里稍斜的上下滑就会误切换）；灵敏度是其中的 `SWIPE_RATIO`；底部悬浮页签靠 nested scroll（离线页）和 WebView 的 `setOnScrollChangeListener`（网页）判断滚动方向来收起或显示。
+- **用户数据（M4）**：`user.db` 不用 Room，直接用 SQLite（`WritableDb` 接口；App 用 `AndroidWritableDb`，JVM 测试用 `JdbcWritableDb`）。没有内置收藏夹（早期版本无名的「默认」收藏夹启动时改名为普通收藏夹）。收藏按「词头 + 读音」**或同一个 `target`** 识别（导入的词读音常和 JMdict 不一致，如ビビンバ存成「びびんば」、读音后带「⓪」），`target` 记打开位置（`core:序号` / `dict:辞书:词条号` / `lookup:写法`；`lookup:` 词在离线数据里没有，打开的是只有网页页签的词条页）。收藏列表的一句话释义要先去掉开头的标签，标签里可能套括号（「［動ワ五（ハ四）］」），`DictionaryRepositoryTest.noSummaryStartsWithAClosingBracket` 扫全部辞书检查。备份是若干 TSV 组成的 zip，与表结构无关。真机测试 `DeviceUserDataTest` 只用临时文件，不碰用户的 `user.db`。词条页只有一种数据形状 `EntryPage`（JMdict 词、单本辞书条目、离线没有的词都转成它），新增网页页签只改 `EntryTab`。列表里的滑动删除不要用 `rememberSwipeToDismissBoxState`：它按列表 key 保存状态，撤销后词回来时还是「已滑走」，会立刻再删一次。拖动排序是自己写的 `core/designsystem/Reorder.kt`（没加依赖）。在真机上试删除时，撤销要在同一条命令里点，人看截图再点会超过提示的显示时间。
+- **Anki 导出要用 Anki 实测**：`.apkg` 是 Anki 旧版（schema 11）集合，字段多、容易写错。改了 `AnkiPackage.kt` 后，用单独的虚拟环境装 Anki 官方库（`pip install anki`，不要装进 `tools/.venv`）跑 `python tools/tests/check_anki.py 文件.apkg`。JVM 测试会把样例包写到系统临时目录的 `jisho-test.apkg`。
+- **系统文件选择器**：导出、导入、备份、恢复都走系统的保存/打开界面。平时自动化测试不去点它（会在用户手机上留下文件）；逻辑靠 JVM 和真机测试覆盖，用户要求验证时才在手机上实际走一遍。
+- **导入 CSV 的编码**：Windows 版 Excel 存的「CSV」是 ANSI（中文系统 GBK、日文系统 Shift-JIS），`TextEncoding` 两种都试、按文字特征打分选一个；改打分规则后跑 `UserDataTest.ansiCsvIsReadInEitherCodePage`。
 - **APK 体积已接近上限**：M3 后 release 26.0 MB（M2 25.9 MB）（上限 30 MB），其中 Kuromoji 词典约 13 MB、手写识别原生库约 7 MB。再加依赖前先算体积。
 - **Kuromoji 打包**：两个 jar 都带 `META-INF/CONTRIBUTORS.md`，已在 `packaging` 里排除；release 包靠 `proguard-rules.pro` 保留 Kuromoji 的类。
 - **手写模型**：ML Kit 的日语模型首次使用时从 Google 下载（约 20 MB），已下载后，App 每次启动后第一次打开手写面板，检查模型状态约 0.75 秒（真机实测；纯本地，不联网，时间花在 ML Kit 下载管理组件的一次性初始化；同一进程里再查只要几毫秒），第一次识别约 0.1 秒；`DevicePerformanceTest.handwritingModelLoadTimes` 会测这几个数。面板靠设置里记住的「模型已就绪」直接打开，检查在后台做（`HandwritingViewModel.checkModel`）。App 因此带有联网权限（ML Kit 自动加入），除此之外不联网。下载按钮由用户点，不要替用户点。

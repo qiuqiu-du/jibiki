@@ -189,4 +189,35 @@ class DictionaryRepositoryTest {
         // A link inside daijisen still opens.
         assertNotNull(r.dictEntry("daijisen", 1))
     }
+
+    /** Favorites lists and exports show the accent and the first sentence of the first definition. */
+    @Test fun summaryOfASavedWord() = runBlocking {
+        val s = repo.summary("core:1358280", "たべる") // 食べる
+        assertEquals("2", s.accent)
+        assertTrue(s.definition, s.definition.endsWith("。") && s.definition.length in 5..80)
+        assertTrue(s.definition, s.definition.startsWith("食物"))
+        // Grammar notes before sense 1 are skipped: 舐める -> 舌の先でなでるように触れる。
+        assertEquals("舌の先でなでるように触れる。", repo.summary("core:1571320", "なめる").definition)
+        assertEquals(WordSummary(null, ""), repo.summary("lookup:xyz", ""))
+        assertTrue(repo.summary("dict:daijisen:1", "").definition.isNotEmpty())
+        // A label with brackets inside it (［動ワ五（ハ四）］) is dropped whole: 労う.
+        assertTrue(repo.summary("core:1560220", "ねぎらう").definition.startsWith("苦労"))
+        assertEquals("いたわる。", firstSentence("［動ワ五（ハ四）］〔文〕いたわる。"))
+    }
+
+    /** No summary in any dictionary starts with a stray closing bracket (left by a bad label cut). */
+    @Test fun noSummaryStartsWithAClosingBracket() {
+        TestPacks.opener().openDictionaries().forEach { d ->
+            val bad = d.allIds().mapNotNull { id -> d.entry(id)?.let { e -> firstSentence(e.body).takeIf { it.firstOrNull()?.let { c -> c in "］〕》)）】〙" } == true }?.let { "${d.dictId}:$id $it" } } }
+            assertTrue(bad.take(5).joinToString("\n"), bad.isEmpty())
+            d.close()
+        }
+    }
+
+    /** Imported words without a target are matched to entries (any spelling, reading optional). */
+    @Test fun importedWordsResolveToEntries() = runBlocking {
+        assertEquals("core:1358280", repo.resolve("食べる", "たべる"))
+        assertEquals("core:1571320", repo.resolve("嘗める", ""))
+        assertEquals("lookup:ほげほげふが", repo.resolve("ほげほげふが", ""))
+    }
 }

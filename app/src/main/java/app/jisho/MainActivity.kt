@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
         // so on-device checks don't depend on the phone's input method.
         val initialQuery = if (BuildConfig.DEBUG) intent.getStringExtra("q").orEmpty() else ""
         val openDictEntry = if (BuildConfig.DEBUG) intent.getStringExtra("open") else null
-        val openSettings = BuildConfig.DEBUG && intent.getStringExtra("tab") == "settings"
+        val openTab = intent.getStringExtra("tab")?.takeIf { BuildConfig.DEBUG && it in setOf("settings", "favorites") }
         val openBadgeSamples = BuildConfig.DEBUG && intent.getStringExtra("tab") == "badges"
         if (BuildConfig.DEBUG) {
             DebugOptions.labelStyle = intent.getStringExtra("labelStyle")
@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             JishoTheme {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    AppNavHost(packsReady = ready, initialQuery = initialQuery, openDictEntry = openDictEntry, openSettings = openSettings, openBadgeSamples = openBadgeSamples)
+                    AppNavHost(packsReady = ready, initialQuery = initialQuery, openDictEntry = openDictEntry, openTab = openTab, openBadgeSamples = openBadgeSamples)
                 }
             }
         }

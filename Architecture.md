@@ -27,7 +27,7 @@
 | UI | Jetpack Compose + Material 3 | 不使用 XML 布局 |
 | 架构 | MVVM + 精简 Clean Architecture（UI → Domain → Data） | Domain 层只在业务复杂时才写 |
 | 依赖注入 | 手写容器（`JishoApp` 里用 `by lazy` 创建，ViewModel 用 `viewModelFactory`） | 只有几个对象，不值得引入 Hilt 和注解处理（构建更快、APK 更小） |
-| 本地存储 | 数据包：只读 SQLite，通过 `SqlDb` 接口访问（App 用 Android SQLite，测试用 JDBC）；`user.db`：Room（M4）；设置：DataStore | 数据包是电脑上生成好的，用 Room 反而要迁就它的表结构校验；查询用查询键的 B 树前缀索引，不用 FTS5 |
+| 本地存储 | 数据包：只读 SQLite，通过 `SqlDb` 接口访问（App 用 Android SQLite，测试用 JDBC）；`user.db`：同样直接用 SQLite，通过可写的 `WritableDb` 接口（`UserStore`）；设置：DataStore | 数据包是电脑上生成好的，用 Room 反而要迁就它的表结构校验；`user.db` 只有三张小表，不用 Room 省掉一个依赖和注解处理，且测试能直接用 JDBC 跑真 SQLite（M4 决定）；查询用查询键的 B 树前缀索引，不用 FTS5 |
 | 压缩 | zstd-jni（带训练字典） | 释义正文按词条单独解压；固定 1.5.7-12，更新的版本要求 compileSdk 37 |
 | 分词 / 形态还原 | Kuromoji + IPADIC（默认）、活用规则表（可切换） | 统一实现 `Lemmatizer` 接口；Sudachi 后期按需 |
 | 手写识别 | Google ML Kit Digital Ink Recognition（日语模型） | 首次使用时下载，之后离线 |
@@ -92,7 +92,7 @@ dict/                                   # 仓库根目录
 ## 3. 分层与单向数据流
 
 ```text
-[Compose UI] ──(用户事件)──▶ [ViewModel] ──▶ [UseCase（可选）] ──▶ [Repository] ──▶ [Room / 数据包 / Lemmatizer]
+[Compose UI] ──(用户事件)──▶ [ViewModel] ──▶ [UseCase（可选）] ──▶ [Repository] ──▶ [UserStore / 数据包 / Lemmatizer]
 [Compose UI] ◀──(StateFlow)── [ViewModel] ◀──(Domain 模型 / Flow)── [Repository] ◀── [Entity]
 ```
 
@@ -112,7 +112,7 @@ dict/                                   # 仓库根目录
 - **键盘时机**：只在页面「完全显示」后弹出（`LifecycleResumeEffect`，侧滑返回松手前不会触发），且只在启动和从词条页返回时弹；离开搜索页去词条时立刻收起。输入框自己保存光标（`TextFieldValue`），重新显示时光标在末尾。
 
 ### 3.3 Data 层
-- Room `@Entity` 只在 Repository 内部使用，交给上层之前必须用 `.toDomain()` 转换成纯 Kotlin 模型。
+- 数据库的行（游标）只在 Repository / `UserStore` 内部读取，交给上层的都是纯 Kotlin 数据类（`WordRef`、`Favorite`、`Folder` 等）。
 - 所有 I/O（数据库、文件、解压、Kuromoji 加载）都在 `Dispatchers.IO` 或 `Dispatchers.Default` 上执行。调度器通过注入获得，不准直接写死 `Dispatchers.IO`，这样测试时可以替换。
 - Repository 对外返回 `AppResult<T>` 或 `Flow<AppResult<T>>`，不准把异常抛到 UI 层。
 
@@ -141,7 +141,7 @@ sealed interface SearchUiState {
     data object Idle : SearchUiState                                  // 输入框为空，显示历史
     data object Loading : SearchUiState
     data class Results(val items: List<Candidate>) : SearchUiState
-    data class Empty(val query: String) : SearchUiState               // 查不到：给出“试试网页页签”入口
+    data class Empty(val query: String) : SearchUiState               // 查不到：列表顶部「查「X」」，打开只有网页页签的词条页（EntryUiState.Unknown）
     data class Error(val message: String) : SearchUiState             // 例如数据包缺失或损坏
 }
 ```
@@ -209,8 +209,8 @@ sealed interface AppResult<out T> {
 | 状态 / 事件 | `XxxUiState` / `XxxUiEvent` | `SearchUiState` |
 | ViewModel | `XxxViewModel` | `FavoritesViewModel` |
 | UseCase | 动词开头 + `UseCase`，只提供 `operator fun invoke` | `LookupWordUseCase` |
-| Repository | 接口 `XxxRepository`，实现 `XxxRepositoryImpl`（或按来源命名，如 `RoomFavoritesRepository`） | |
-| Room | `XxxEntity` / `XxxDao` | `FavoriteEntity` |
+| Repository | 接口 `XxxRepository`，实现 `XxxRepositoryImpl`（或按来源命名，如 `UserStore`） | |
+| 用户数据 | 纯 Kotlin 数据类，放在 `core/userdata/` | `Favorite`、`Folder` |
 | 日语术语 | 代码里用英文：词头 `headword`、读音 `reading`、音调 `pitch`、原形 `lemma`、活用 `inflection`、辞书 `dictionary` | |
 
 - 代码遵循 Kotlin 官方风格，用 ktlint 检查格式。
@@ -282,7 +282,7 @@ sealed interface AppResult<out T> {
 
 - [ ] 新功能是否放在 `feature/<name>/` 下，而不是堆在根目录？
 - [ ] 页面是否拆成了 `Route` 和无状态的 `Screen`，并且 `Screen` 带 `@Preview`？
-- [ ] Room Entity 是否已经转换成 Domain 模型，才交给 UI？
+- [ ] 交给 UI 的是否都是纯 Kotlin 数据类，而不是游标或数据库行？
 - [ ] 是否处理了加载中、空状态、出错三种状态？
 - [ ] `LazyColumn` 是否提供了稳定的 `key`？
 - [ ] 所有 I/O 和解压是否都不在主线程上？

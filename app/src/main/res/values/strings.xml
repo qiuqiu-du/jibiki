@@ -14,7 +14,8 @@
     <!-- Search -->
     <string name="search_hint">输入日语、假名或罗马音</string>
     <string name="search_clear">清空</string>
-    <string name="search_no_result">没有找到「%1$s」</string>
+    <string name="search_web">查「%1$s」</string>
+    <string name="search_web_desc">离线辞书里没有，打开词条页到网页词典里查，也可以收藏</string>
     <string name="search_dict_only">只收录在单本辞书里的词条</string>
     <string name="search_inflection">← %1$s</string>
     <string name="search_inflection_reasons">← %1$s（%2$s）</string>
@@ -76,6 +77,7 @@
 
     <!-- Navigation and settings -->
     <string name="nav_search">查词</string>
+    <string name="nav_favorites">收藏</string>
     <string name="nav_settings">设置</string>
     <string name="settings_title">设置</string>
     <string name="settings_lemmatizer">分词与变形还原</string>
@@ -93,6 +95,7 @@
     <string name="entry_back">返回</string>
     <string name="entry_favorite">收藏</string>
     <string name="entry_no_definition">离线辞书里没有这个词的释义</string>
+    <string name="entry_not_found">找不到这个词条（数据包可能已更新），请重新搜索</string>
     <string name="entry_common">常用</string>
     <string name="entry_inflection">%1$s ← %2$s</string>
     <string name="entry_inflection_reasons">%1$s ← %2$s（%3$s）</string>
@@ -119,4 +122,69 @@
     <string name="pos_suf">接尾語</string>
     <string name="pos_ctr">助数詞</string>
     <string name="pos_adj_pn">連体詞</string>
+
+    <!-- Favorites, history, export and backup (M4) -->
+    <string name="favorites_unnamed">默认</string>
+    <string name="favorites_title">收藏夹</string>
+    <string name="favorites_words">%1$d 个词</string>
+    <string name="favorites_new">新建收藏夹</string>
+    <string name="favorites_rename">重命名</string>
+    <string name="favorites_edit_title">编辑收藏夹</string>
+    <string name="favorites_edit_hint">按住右侧 ≡ 拖动调整顺序，点名称重命名</string>
+    <string name="favorites_drag">拖动排序</string>
+    <string name="favorites_removed">已删除 %1$d 个词</string>
+    <string name="favorites_swipe_delete">删除</string>
+    <string name="common_undo">撤销</string>
+    <string name="favorites_delete">删除</string>
+    <string name="favorites_delete_folder_title">删除「%1$s」？</string>
+    <string name="favorites_delete_folder_text">只删除这个收藏夹和其中的 %1$d 个收藏记录；这些词如果也在别的收藏夹里，那里的记录不受影响。</string>
+    <string name="favorites_name_hint">收藏夹名称</string>
+    <string name="favorites_name_taken">已有同名收藏夹</string>
+    <string name="favorites_more">更多</string>
+    <string name="favorites_empty">还没有收藏夹。点右上角的「+」新建，或在词条页点 ☆ 收藏时新建。</string>
+    <string name="favorites_folder_empty">这个收藏夹还没有词。</string>
+    <string name="favorites_sort_added">按收藏时间</string>
+    <string name="favorites_sort_kana">按五十音</string>
+    <string name="favorites_selected">已选 %1$d 个</string>
+    <string name="favorites_select_all">全选</string>
+    <string name="favorites_move_to">移动到…</string>
+    <string name="favorites_move">移动</string>
+    <string name="favorites_export">导出全部收藏</string>
+    <string name="favorites_import">导入收藏</string>
+    <string name="favorites_export_as">导出为</string>
+    <string name="favorites_import_from">从哪种文件导入</string>
+    <string name="format_csv">CSV 表格</string>
+    <string name="format_csv_desc">用 Excel 等软件打开，或以后再导入回来（UTF-8 编码）</string>
+    <string name="format_anki">Anki 卡组（.apkg）</string>
+    <string name="format_anki_desc">导入 Anki 复习：正面词头，背面读音、音调和第一条释义</string>
+    <string name="format_csv_utf8">CSV（UTF-8）</string>
+    <string name="format_csv_utf8_desc">本 App 导出的文件，或其他软件存成 UTF-8 的 CSV</string>
+    <string name="format_csv_ansi">CSV（ANSI）</string>
+    <string name="format_csv_ansi_desc">Windows 版 Excel 默认的「CSV（逗号分隔）」；自动识别简体中文（GBK）和日文（Shift-JIS）</string>
+    <string name="favorites_exported">已导出 %1$d 个词</string>
+    <string name="favorites_imported">已导入 %1$d 个词，跳过 %2$d 个已有的</string>
+    <string name="favorites_import_failed">无法导入：文件里没有 headword（词头）一列</string>
+    <string name="favorites_file_failed">无法读写这个文件</string>
+    <string name="favorites_moved">已移动 %1$d 个词到「%2$s」</string>
+    <string name="favorites_added">已收藏到「%1$s」</string>
+    <string name="favorites_change">更改</string>
+    <string name="favorites_pick_title">收藏到</string>
+    <string name="favorites_done">完成</string>
+    <string name="entry_unfavorite">已收藏</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_ok">确定</string>
+    <string name="history_title">最近查过</string>
+    <string name="history_clear">清空</string>
+    <string name="history_clear_title">清空查词历史？</string>
+    <string name="settings_backup">备份与恢复</string>
+    <string name="settings_backup_desc">备份收藏夹、收藏记录、查词历史和设置，不含辞书数据包。备份文件可以存到手机任意位置或云盘，换手机或重装后从这里恢复。</string>
+    <string name="settings_backup_now">备份到文件…</string>
+    <string name="settings_restore">从备份恢复…</string>
+    <string name="settings_restore_title">用这份备份替换现有数据？</string>
+    <string name="settings_restore_text">备份时间：%1$s\n收藏夹 %2$d 个，收藏记录 %3$d 条，查词历史 %4$d 条。\n\n现有的收藏、历史和设置会被替换。替换前会自动保存一份当前数据，之后可以在这里撤销。</string>
+    <string name="settings_restore_done">已恢复</string>
+    <string name="settings_restore_failed">这不是本 App 的备份文件，或文件已损坏</string>
+    <string name="settings_backup_done">已备份</string>
+    <string name="settings_undo_restore">撤销上次恢复</string>
+    <string name="settings_undo_restore_done">已撤销，数据回到恢复之前</string>
 </resources>

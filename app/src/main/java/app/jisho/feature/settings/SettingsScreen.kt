@@ -14,6 +14,12 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import app.jisho.feature.favorites.MessageEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -76,10 +82,13 @@ class SettingsViewModel(
 }
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, onReimport: () -> Unit) {
+fun SettingsScreen(viewModel: SettingsViewModel, backup: BackupViewModel, onReimport: () -> Unit) {
     val mode by viewModel.lemmatizerMode.collectAsStateWithLifecycle()
     val dictionaries by viewModel.dictionaries.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(vertical = 16.dp)) {
+    val snackbar = remember { SnackbarHostState() }
+    MessageEffect(backup.messages, snackbar)
+    Scaffold(snackbarHost = { SnackbarHost(snackbar) }, contentWindowInsets = WindowInsets(0)) { padding ->
+    Column(Modifier.padding(padding).fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(vertical = 16.dp)) {
         Text(
             stringResource(R.string.settings_title),
             style = MaterialTheme.typography.headlineSmall,
@@ -113,6 +122,9 @@ fun SettingsScreen(viewModel: SettingsViewModel, onReimport: () -> Unit) {
                 viewModel.setLemmatizerMode(LemmatizerMode.Rules)
             }
         }
+        SectionTitle(R.string.settings_backup)
+        BackupSection(backup)
+    }
     }
 }
 

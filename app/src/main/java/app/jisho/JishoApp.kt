@@ -5,6 +5,10 @@ import app.jisho.core.data.DictPrefs
 import app.jisho.core.data.DictionaryRepository
 import app.jisho.core.data.SettingsRepository
 import app.jisho.core.datapack.DataPackManager
+import app.jisho.core.database.AndroidWritableDb
+import app.jisho.core.userdata.BackupManager
+import app.jisho.core.userdata.FavoritesTransfer
+import app.jisho.core.userdata.UserStore
 import app.jisho.core.lemmatizer.CombinedLemmatizer
 import app.jisho.core.lemmatizer.KuromojiHolder
 import app.jisho.core.lemmatizer.Lemmatizer
@@ -47,6 +51,13 @@ class JishoApp : Application() {
         )
     }
 
+    /** The user's favorites and history (user.db, the only file a backup needs). */
+    val userStore by lazy {
+        UserStore(AndroidWritableDb(getDatabasePath(USER_DB).also { it.parentFile?.mkdirs() }), getString(R.string.favorites_unnamed))
+    }
+    val backups by lazy { BackupManager(this, userStore, settings) }
+    val transfer by lazy { FavoritesTransfer(userStore, repository) }
+
     private fun currentLemmatizer(): Lemmatizer =
         if (lemmatizerMode == LemmatizerMode.Kuromoji) combined else rules
 
@@ -71,5 +82,6 @@ class JishoApp : Application() {
 
     companion object {
         const val RULES_ASSET = "deinflect_rules.tsv"
+        const val USER_DB = "user.db"
     }
 }

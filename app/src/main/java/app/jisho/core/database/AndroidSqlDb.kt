@@ -17,7 +17,7 @@ class AndroidSqlDb(file: File) : SqlDb {
 
     override fun close() = db.close()
 
-    private class CursorRow(private val c: Cursor) : SqlRow {
+    internal class CursorRow(private val c: Cursor) : SqlRow {
         override fun long(i: Int) = c.getLong(i)
         override fun int(i: Int) = c.getInt(i)
         override fun string(i: Int): String = c.getString(i)

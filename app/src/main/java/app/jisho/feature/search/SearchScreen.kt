@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.SuggestionChip
@@ -61,6 +62,9 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.jisho.core.designsystem.ja
+import app.jisho.core.userdata.HistoryItem
+import app.jisho.core.userdata.UserStore
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,7 +84,15 @@ class SearchViewModel(
     debounceMs: Long = 30,
     /** Each emission re-runs the current query (lemmatizer setting changed or finished loading). */
     refresh: Flow<Any> = flowOf(Unit),
+    /** Lookup history, shown while the field is empty; null in tests. */
+    private val user: UserStore? = null,
 ) : ViewModel() {
+    val history: StateFlow<List<HistoryItem>> = (user?.version ?: flowOf(0L))
+        .mapLatest { user?.history(HISTORY_SHOWN).orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun clearHistory() { viewModelScope.launch { user?.clearHistory() } }
+
     private val _query = MutableStateFlow(initialQuery)
     val query: StateFlow<String> = _query
 
@@ -115,8 +127,12 @@ fun SearchScreen(
     onOpenEntry: (Candidate) -> Unit,
     onOpenDictEntry: (String, Long) -> Unit,
     onLookup: (String) -> Unit,
+    onOpenTarget: (String) -> Unit = {},
+    /** False while another main page is in view: the keyboard isn't raised then. */
+    active: Boolean = true,
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
+    val history by viewModel.history.collectAsStateWithLifecycle()
     val result by viewModel.result.collectAsStateWithLifecycle()
     val focus = remember { FocusRequester() }
     var writing by rememberSaveable { mutableStateOf(false) }
@@ -128,8 +144,8 @@ fun SearchScreen(
         if (query != field.text) field = TextFieldValue(query, TextRange(query.length)) // clear, handwriting
     }
     // RESUMED only once a page transition (or a back gesture) has fully finished.
-    LifecycleResumeEffect(Unit) {
-        if (viewModel.consumeFocusRequest()) {
+    LifecycleResumeEffect(active) {
+        if (active && viewModel.consumeFocusRequest()) {
             focus.requestFocus()
             keyboard?.show()
         }
@@ -169,12 +185,19 @@ fun SearchScreen(
         )
         val r = result
         when {
+            query.isBlank() && history.isNotEmpty() ->
+                HistoryList(history, onClear = viewModel::clearHistory) { leave { onOpenTarget(it.word.target) } }
             query.isBlank() -> Hint(stringResource(R.string.search_empty_hint))
-            r != null && r.words.isEmpty() && r.dictOnly.isEmpty() && r.segments.isEmpty() ->
-                Hint(stringResource(R.string.search_no_result, query))
             r != null -> LazyColumn(Modifier.fillMaxSize()) {
                 if (r.segments.isNotEmpty()) {
                     item(key = "segments") { SegmentBar(r.segments) { key -> leave { onLookup(key) } } }
+                }
+                // Nothing matches the input itself: it still gets a page (web tabs, star).
+                if (r.words.none { it.exact || it.inflection != null }) {
+                    item(key = "web") {
+                        WebLookupRow(query.trim()) { leave { onLookup(query.trim()) } }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
                 }
                 items(r.words, key = { "w${it.entryId}" }) { c ->
                     CandidateRow(c) { leave { onOpenEntry(c) } }
@@ -189,6 +212,53 @@ fun SearchScreen(
                 }
             }
         }
+    }
+}
+
+private const val HISTORY_SHOWN = 100
+
+/** Recently looked-up words (newest first), with a button to clear them. */
+@Composable
+private fun HistoryList(items: List<HistoryItem>, onClear: () -> Unit, onOpen: (HistoryItem) -> Unit) {
+    var confirming by remember { mutableStateOf(false) }
+    LazyColumn(Modifier.fillMaxSize()) {
+        item(key = "header") {
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.history_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { confirming = true }) { Text(stringResource(R.string.history_clear)) }
+            }
+        }
+        items(items, key = { "h" + it.word.headword + "|" + it.word.reading }) { h ->
+            Row(
+                Modifier.fillMaxWidth().clickable { onOpen(h) }.padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(h.word.headword, style = MaterialTheme.typography.titleMedium.ja())
+                if (h.word.reading.isNotEmpty() && h.word.reading != h.word.headword) {
+                    Text(
+                        "  " + h.word.reading,
+                        style = MaterialTheme.typography.bodyMedium.ja(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        }
+    }
+    if (confirming) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text(stringResource(R.string.history_clear_title)) },
+            confirmButton = { TextButton(onClick = { onClear(); confirming = false }) { Text(stringResource(R.string.history_clear)) } },
+            dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.common_cancel)) } },
+        )
     }
 }
 
@@ -239,6 +309,28 @@ private fun CandidateRow(c: Candidate, onClick: () -> Unit) {
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
+    }
+}
+
+/** Opens the entry page for a word the offline packs don't have. */
+@Composable
+private fun WebLookupRow(text: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(16.dp))
+        Column {
+            Text(
+                stringResource(R.string.search_web, text), style = MaterialTheme.typography.titleMedium.ja(),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                stringResource(R.string.search_web_desc), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

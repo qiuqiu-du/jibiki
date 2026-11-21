@@ -3,6 +3,8 @@ package app.jisho.feature
 import app.jisho.core.data.DictionaryRepository
 import app.jisho.feature.entry.EntryTarget
 import app.jisho.feature.entry.EntryUiState
+import app.jisho.feature.entry.EntryPage
+import app.jisho.core.userdata.WordRef
 import app.jisho.feature.entry.EntryViewModel
 import app.jisho.feature.search.SearchViewModel
 import app.jisho.testing.TestPacks
@@ -34,6 +36,8 @@ class FeatureViewModelTest {
 
     @After fun tearDown() = Dispatchers.resetMain()
 
+    private fun page(target: EntryTarget): EntryPage = (entryState(target) as EntryUiState.Ready).page
+
     private fun entryState(target: EntryTarget): EntryUiState = runBlocking {
         val vm = EntryViewModel(repo, target)
         withTimeout(10_000) { vm.state.first { it != EntryUiState.Loading } }
@@ -61,22 +65,32 @@ class FeatureViewModelTest {
     }
 
     @Test fun coreEntryShowsOnlyDictionariesWithDefinitions() {
-        val s = entryState(EntryTarget.Core(1358280)) as EntryUiState.Word
-        assertEquals("食べる", s.core.headword)
-        assertTrue(s.sections.all { it.second.isNotEmpty() })
+        val s = page(EntryTarget.Core(1358280))
+        assertEquals("食べる", s.head!!.headword)
+        assertTrue(s.sections.isNotEmpty() && s.sections.all { it.second.isNotEmpty() })
+        assertEquals(WordRef("食べる", "たべる", "core:1358280"), s.word)
     }
 
     @Test fun lookupLinkPrefersAnExactWord() {
-        val s = entryState(EntryTarget.Lookup("のむ")) as EntryUiState.Word
-        assertEquals("飲む", s.core.headword)
+        assertEquals("飲む", page(EntryTarget.Lookup("のむ")).head!!.headword)
     }
 
     @Test fun lookupFallsBackToDictionaryOnlyEntries() {
-        assertTrue(entryState(EntryTarget.Lookup("はまでら")) is EntryUiState.Single)
+        val s = page(EntryTarget.Lookup("はまでら"))
+        assertEquals(null, s.head) // the item's title heads its section
+        assertTrue(s.word.target.startsWith("dict:"))
     }
 
     @Test fun unknownTargetsAreNotFound() {
         assertEquals(EntryUiState.NotFound, entryState(EntryTarget.Core(-1)))
-        assertEquals(EntryUiState.NotFound, entryState(EntryTarget.Lookup("ゐゑゐゑ")))
+    }
+
+    /** A look-up the packs don't have still gets a page: the web tabs and the star work on it. */
+    @Test fun unknownLookupIsAWordOfItsOwn() {
+        val s = page(EntryTarget.Lookup(" ゐゑゐゑ "))
+        assertEquals(EntryPage.unknown("ゐゑゐゑ", ""), s)
+        assertEquals(WordRef("ゐゑゐゑ", "", "lookup:ゐゑゐゑ"), s.word)
+        assertEquals(listOf("ゐゑゐゑ"), s.webQuery)
+        assertTrue(s.sections.isEmpty())
     }
 }
