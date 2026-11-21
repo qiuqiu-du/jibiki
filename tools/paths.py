@@ -14,5 +14,6 @@ MEIKYO3 = DICTIONARIES / "meikyo3" / "meikyo3.mdx"
 SHINMEIKAI8 = DICTIONARIES / "shinmeikai8" / "shinmeikai8.zip"
 DAIJIRIN4 = DICTIONARIES / "daijirin4" / "daijirin4.zip"
 SHOGAKUKAN_JC3 = DICTIONARIES / "shogakukan-jc3" / "shogakukan-jc3.mdx"
+SHINSEIKI_JC = DICTIONARIES / "shinseiki-jc" / "shinseiki-jc.mdx"
 
 CORE_DB = DATAPACKS / "core.db"

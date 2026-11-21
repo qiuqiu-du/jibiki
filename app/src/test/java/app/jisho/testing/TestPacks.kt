@@ -52,7 +52,7 @@ class JdbcSqlDb(file: File) : SqlDb {
 object TestPacks {
     val dir = File(System.getProperty("datapacks.dir") ?: "../datapacks")
     val coreFile = File(dir, "core.db")
-    val dictionaryIds = listOf("daijisen", "daijirin4", "meikyo3", "shinmeikai8", "shogakukan_jc3")
+    val dictionaryIds = listOf("daijisen", "daijirin4", "meikyo3", "shinmeikai8", "shogakukan_jc3", "shinseiki_jc")
 
     fun assumePresent() = assumeTrue("data packs not generated (run tools/build_*.py)", coreFile.exists())
 

@@ -39,6 +39,7 @@ ALIGN = [
     ("shinmeikai8", "橋", "はし", 1237410),
     ("daijirin4", "食べる", "たべる", 1358280), ("daijirin4", "橋", "はし", 1237410),
     ("shogakukan_jc3", "食べる", "たべる", 1358280), ("shogakukan_jc3", "手間", "てま", None),
+    ("shinseiki_jc", "食べる", "たべる", 1358280), ("shinseiki_jc", "手間", "てま", None),
 ]
 
 ALLOWED_TAGS = {"p", "br", "b", "i", "sup", "sub", "ruby", "rt", "span", "a", "img"}
@@ -154,7 +155,7 @@ def check_pack(core, dict_id):
 def main():
     core = sqlite3.connect(paths.CORE_DB)
     check_core(core)
-    for d in ("daijisen", "meikyo3", "shinmeikai8", "daijirin4", "shogakukan_jc3"):
+    for d in ("daijisen", "meikyo3", "shinmeikai8", "daijirin4", "shogakukan_jc3", "shinseiki_jc"):
         check_pack(core, d)
     total = sum(p.stat().st_size for p in paths.DATAPACKS.glob("*.db")) / 1e6
     print(f"total data packs: {total:.1f} MB")

@@ -17,6 +17,7 @@ class SummaryTest {
 
     private val tema = "core:1327410" // 手間
     private val jc = "shogakukan_jc3"
+    private val chineseDicts = setOf("shogakukan_jc3", "shinseiki_jc")
 
     private fun repo(dicts: DictPrefs = DictPrefs(), lines: SummaryPrefs = SummaryPrefs()) =
         DictionaryRepository(TestPacks.opener(), prefs = { dicts }, summaries = { lines })
@@ -48,11 +49,15 @@ class SummaryTest {
 
     @Test fun noEnabledDictionaryMeansNoLine() = runBlocking {
         val all = DictionaryRepository(TestPacks.opener()).dictionaries(DictPrefs()).map { it.info.id }
-        val ja = all.filter { it != jc }.toSet()
+        val ja = (all - chineseDicts).toSet()
         repo(DictPrefs(disabled = ja), SummaryPrefs(everywhere, everywhere)).summary(tema, "てま", SummaryPlace.Favorites).let {
             assertEquals("", it.definition); assertTrue(it.chinese.isNotEmpty())
         }
+        // With the first Japanese-Chinese dictionary off, the next one gives the line; with all off, none.
         repo(DictPrefs(disabled = setOf(jc)), SummaryPrefs(everywhere, everywhere)).summary(tema, "てま", SummaryPlace.Favorites).let {
+            assertTrue(it.definition.isNotEmpty()); assertEquals("工夫；工钱", it.chinese)
+        }
+        repo(DictPrefs(disabled = chineseDicts), SummaryPrefs(everywhere, everywhere)).summary(tema, "てま", SummaryPlace.Favorites).let {
             assertTrue(it.definition.isNotEmpty()); assertEquals("", it.chinese)
         }
         // A dictionary-only item follows its own dictionary's switch (it used to show regardless).
@@ -75,8 +80,8 @@ class SummaryTest {
         val alike = repo().search("こし").words.filter { it.headword == "腰" }
         assertTrue(alike.size > 1 && alike.all { it.hint.isNotEmpty() })
         assertEquals(alike.size, alike.map { it.hint }.distinct().size)
-        // Both link to the same Chinese entry: a Chinese line would not tell them apart, so none.
-        assertTrue(alike.all { it.zhHint.isEmpty() })
+        // A Chinese line appears only if it tells them apart (never the same line twice).
+        assertTrue(alike.all { it.zhHint.isEmpty() } || alike.map { it.zhHint }.distinct().size == alike.size)
         // Hints are whole lines (the row shows "…" where the screen ends), not cut at a fixed length.
         assertTrue(alike.any { it.hint.endsWith("。") })
     }

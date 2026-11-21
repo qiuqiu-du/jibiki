@@ -1,0 +1,3 @@
+# 新世纪日汉双解大辞典: gaiji pictures replaced by text (see tools/lib/gaiji.py).
+# The source inlines its pictures as data: URIs; dicts/shinseiki_jc.py names them by content
+# hash. The Japanese/Chinese divider (b1a86398…) is dropped there; the rest stay images.

@@ -57,7 +57,7 @@ dict/
 | M2 查得准 | Kuromoji 和规则表两种还原器、JMdict 校验、手写、测试集 | ✅ 2026-11-20 用户验收通过（测试集 565 条两种模式全过、候选 p95 9–14.5 ms、冷启动约 510 ms、release APK 25.9 MB） |
 | M3 释义完善 | 辞书管理、释义排版和外字、网页页签 | ✅ 2026-11-20 用户验收通过（外字无占位、编号由 App 绘制、词条 p95 1.8 ms、release APK 26.0 MB） |
 | M4 收藏完善 | 收藏夹、导出导入、备份恢复、历史 | ✅ 2026-11-21 用户验收通过（release APK 25.0 MB；备份往返、Anki 导入已实测；MOJi 收藏 2914 词已导入；收藏夹拖动排序、左滑删除可撤销） |
-| M5 辞书扩充 | 依次加入大辞林第四版、小学館日中辞典第三版、新世纪日汉双解（顺序见 [docs/dictionaries.md](docs/dictionaries.md)） | ⏳ 进行中：① 大辞林4 ✅；② 小学館日中第三版已打包（12.3 MB）、一行释义设置完成，待验收 |
+| M5 辞书扩充 | 依次加入大辞林第四版、小学館日中辞典第三版、新世纪日汉双解（顺序见 [docs/dictionaries.md](docs/dictionaries.md)） | ✅ 2026-11-21 用户验收通过（大辞林4、小学館日中3、新世纪日汉双解；词库合计 178.8 MB，release APK 25.1 MB） |
 
 完成一个阶段后，更新这张表和设计文档里的里程碑表格（记录 APK 大小、数据包大小、冷启动时间）。
 
@@ -104,6 +104,7 @@ tools/.venv/bin/python tools/build_dict.py daijisen        # → dict_daijisen.d
 tools/.venv/bin/python tools/build_dict.py meikyo3
 tools/.venv/bin/python tools/build_dict.py shinmeikai8
 tools/.venv/bin/python tools/build_dict.py daijirin4       # 约 1.5 分钟
+tools/.venv/bin/python tools/build_dict.py shinseiki_jc    # 约 1 分钟
 tools/.venv/bin/python tools/build_dict.py shogakukan_jc3  # 约 40 秒（辞书 id 用下划线：收藏的打开位置 dict:id:序号 不允许连字符）
 tools/.venv/bin/python tools/tests/check_packs.py          # 音调、对齐、标签、链接抽查；失败时退出码为 1
 tools/.venv/bin/python tools/measure_sources.py daijirin4  # 加新辞书前估算体积和常用词覆盖（不写文件）
@@ -194,6 +195,7 @@ adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es la
   - 用户在设置里保存过辞书顺序时，新加的辞书排在最后，需要用户自己调整。
 - **日中辞书**（`tools/dicts/shogakukan_jc3.py`）：数据包 meta 里 `lang = ja-zh`，App 据此区分日日和日中（`DictDb.chinese`）。转换脚本必须把中文标出来：译词 `<span class="gloss">`（一行中文释义只认它），其他中文（例句译文、复合词释义）`<span class="zh">`；两者都用简体中文字形显示。一行释义的规则见 design-spec「一行释义」：日文只取日日辞书、中文只取日中辞书，各取第一本启用且有内容的。`check_packs.py` 会统计常用词里有译词行的比例，低于有词条的 95% 就报错。
   - 小学館的插图在 `.mdd` 的 `jc03/` 下（`JGN*.bmp`），不收；外字在 `jc03/gaiji/`、`jc03/entity/`，是 BMP，生成时用 macOS 自带的 `sips` 转 PNG。
+  - 新世纪（`tools/dicts/shinseiki_jc.py`）：图片都是内嵌的 base64，几乎全是日文释义和中文之间的分隔图，转换时去掉；中文第一句是译词（gloss），其余 zh。原文有 44 处把 `<sup>` 导出成 `<sub><</sub>sup>`，按规则还原；原文的中间点是拉丁「·」，词头和日文例句里换成「・」（中文里的「·」不动）。
   - 没有读音的条目（复合词）按写法对齐：JMdict 里只有一个词用这个写法时才连上（`build_dict.align`）。
 - **JVM 测试用的辞书清单**在 `TestPacks.dictionaryIds`，加新辞书时要一起加，否则「扫描全部辞书」的测试不会覆盖它（大辞林加入时漏过一次）。
 - **Anki 导出要用 Anki 实测**：`.apkg` 是 Anki 旧版（schema 11）集合，字段多、容易写错。改了 `AnkiPackage.kt` 后，用单独的虚拟环境装 Anki 官方库（`pip install anki`，不要装进 `tools/.venv`）跑 `python tools/tests/check_anki.py 文件.apkg`。JVM 测试会把样例包写到系统临时目录的 `jisho-test.apkg`。
