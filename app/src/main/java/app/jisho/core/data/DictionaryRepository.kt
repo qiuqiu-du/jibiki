@@ -129,10 +129,11 @@ class DictionaryRepository(
         val lemmaRows = lemmaRows(key).filter { l -> exact.none { it.entryId == l.entryId } }
         // One query per dictionary answers both questions below (was one per row and dictionary).
         val definedIds = if (lemmaRows.isEmpty()) emptySet() else defined(ds, lemmaRows.map { it.entryId } + exact.map { it.entryId })
-        val lemmas = lemmaRows.filter { it.entryId in definedIds }
+        // Without any dictionary (only the app's own core.db) nothing is defined: keep them all.
+        val lemmas = if (ds.isEmpty()) lemmaRows else lemmaRows.filter { it.entryId in definedIds }
         // JMdict lists some inflected expressions on their own (信じられない) that no dictionary
         // defines; when the input also has a defined dictionary form, that form goes first.
-        val (defined, undefined) = if (lemmas.isEmpty()) exact to emptyList() else exact.partition { it.entryId in definedIds }
+        val (defined, undefined) = if (lemmas.isEmpty() || ds.isEmpty()) exact to emptyList() else exact.partition { it.entryId in definedIds }
         val words = present(defined + lemmas + undefined + prefix.filter { p -> lemmas.none { it.entryId == p.entryId } }, ds)
         val dictOnly = if (words.size < 20) ds.flatMap { it.searchOwnKeys(key, limit = 10) } else emptyList()
         // Word by word whenever the input is not one word or one inflected word: a sentence, a
@@ -267,7 +268,7 @@ class DictionaryRepository(
             entry.forms.map { SearchKey.of(it.kanji ?: it.reading) }.distinct()
                 .flatMap { lemmaRows(it) }.distinctBy { it.entryId }
                 .filter { it.entryId != coreId }
-                .let { rows -> defined(ds, rows.map { it.entryId }).let { d -> rows.filter { it.entryId in d } } }
+                .let { rows -> if (ds.isEmpty()) rows else defined(ds, rows.map { it.entryId }).let { d -> rows.filter { it.entryId in d } } }
         EntryDetail(entry, definitions, baseForms)
     }
 

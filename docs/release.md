@@ -81,4 +81,4 @@ APK 里没有任何辞书内容，放在公开仓库的 Release 里没有问题�
 3. 设置 `ORG_GRADLE_PROJECT_requireReleaseSigning=true`：缺钥匙时直接失败，不会产出调试签名的包；需要时用 `ORG_GRADLE_PROJECT_versionName` 指定版本名；
 4. 运行 `scripts/deploy.sh test apk`，产物在 `dist/`。
 
-CI 上没有辞书原文件，所以只做测试（需要数据包的测试自动跳过）和 APK，不生成数据包。
+CI 上没有辞书原文件，所以只做测试（需要数据包的测试自动跳过）和 APK，不生成数据包。生成 core.db 还要 `sources/jiten/frequency_list_global.csv`：jiten.moe 拒绝脚本下载，CI 里要事先放好这个文件（比如作为缓存或私有附件）。

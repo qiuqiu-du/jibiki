@@ -75,6 +75,7 @@ internal fun AboutSection(info: AppInfo, model: InkModelState, onDeleteModel: ()
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(stringResource(R.string.settings_version, info.version), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.settings_open_data), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import zstandard
 
-DICT_SCHEMA_VERSION = 2  # 2: media table (gaiji pictures)
+DICT_SCHEMA_VERSION = 3  # 2: media table (gaiji pictures); 3: pitch / entry_score tables (lib/pitch.py)
 BODY_FORMAT_VERSION = 1
 ZDICT_SIZE = 1024 * 1024  # 1 MB: measured ~16% smaller than 128 KB on Daijisen
 ZSTD_LEVEL = 19

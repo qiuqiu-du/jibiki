@@ -17,7 +17,7 @@
 - `tools/` 下的脚本只是格式转换工具，只应用于你**合法持有**的辞书副本，转换结果仅限个人使用。各辞书的著作权归原出版社所有；本项目与任何出版社、辞书或网站没有关联，也未获其授权。
 - [docs/moji-import.md](docs/moji-import.md) 只记录如何导出**自己账号里**的收藏，需要用户自己登录；它不是 MOJi辞書 的官方接口文档，接口随时可能变化。请遵守该服务的使用条款。
 - 网页页签只是在 App 内打开 コトバンク、Weblio 的公开页面，内容版权归各网站所有。
-- 开放数据 JMdict（EDRDG，CC BY-SA 4.0）和 Kanjium 按各自许可使用；Kuromoji、ML Kit 等依赖按各自许可使用。
+- 开放数据 JMdict（EDRDG，CC BY-SA 4.0）、Kanjium（CC BY-SA 4.0）和 [Jiten](https://jiten.moe) 词频（CC BY-SA 4.0）按各自许可使用，安装包内置的 core.db 由它们生成，同样以 CC BY-SA 4.0 提供；Kuromoji、ML Kit 等依赖按各自许可使用。
 - 本项目按现状提供，不作任何保证。如果你是权利人并认为某些内容不妥，请提 issue，我会尽快处理。
 
 This repository contains **no dictionary data**. The scripts in `tools/` only convert copies you lawfully own, for personal use. All dictionaries are copyrighted by their publishers; this project is not affiliated with or endorsed by any publisher, dictionary or website. Provided as is, without warranty. Rights holders: please open an issue and it will be addressed promptly.

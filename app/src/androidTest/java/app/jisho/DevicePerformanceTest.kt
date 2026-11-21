@@ -37,7 +37,8 @@ class DevicePerformanceTest {
 
     @Test
     fun searchAndEntryMeetTargets() = runBlocking {
-        assumeTrue("import the data packs in the app first", app.dataPacks.isReady())
+        app.dataPacks.prepareCore() // the test run reinstalled the app: core.db is rebuilt first
+        assumeTrue("push the data packs first (scripts/push-datapacks.sh)", app.dataPacks.isReady())
         keepScreenOn()
         // With the screen off the phone dozes and starves this process of CPU: the run then
         // takes many minutes and every number is wrong, so stop at once instead.

@@ -2,12 +2,13 @@
 # One-stop build and deploy: data packs -> checks -> tests -> release APK -> phone.
 #
 # Usage: scripts/deploy.sh [steps...]
-#   data      build datapacks/ from dictionaries/ (core.db + every dictionary whose source exists, ~6 min)
+#   data      build datapacks/: core.db (open data, goes into the APK) + every pack whose source
+#             exists in dictionaries/ (~6 min)
 #   check     data pack checks (tools/tests/check_packs.py)
 #   test      JVM tests (no phone needed; tests that need datapacks/ are skipped without it)
-#   apk       release APK -> dist/jisho-<version>.apk (+ .sha256)
+#   apk       release APK -> dist/jisho-<version>.apk (+ .sha256), with core.db inside
 #   install   install dist/'s APK on the phone over USB (adb)
-#   push      copy datapacks/ to the phone's Download/jisho/ (then pick that folder in the app)
+#   push      copy the packs to the phone's Download/jisho/ (then pick that folder in the app)
 #   all       data check test apk (the default; nothing touches the phone)
 # Examples: scripts/deploy.sh              everything except the phone
 #           scripts/deploy.sh apk install  rebuild the APK and install it
@@ -24,6 +25,12 @@ fi
 PY=tools/.venv/bin/python
 
 step() { printf '\n== %s\n' "$1"; }
+need_python() {
+  if [ ! -x "$PY" ]; then
+    echo "Python environment missing: python3 -m venv tools/.venv && tools/.venv/bin/pip install -r tools/requirements.txt"
+    echo "(python-lzo needs 'brew install lzo' first, see AGENTS.md)"; exit 2
+  fi
+}
 need_phone() {
   if [ "$(adb get-state 2>/dev/null)" != "device" ]; then
     echo "No phone connected (USB debugging on? adb devices)"; exit 2
@@ -32,12 +39,11 @@ need_phone() {
 
 data() {
   step "Data packs"
-  if [ ! -d dictionaries ]; then echo "dictionaries/ not found: skipped (the APK does not need it)"; return; fi
-  if [ ! -x "$PY" ]; then
-    echo "Python environment missing: python3 -m venv tools/.venv && tools/.venv/bin/pip install -r tools/requirements.txt"
-    echo "(python-lzo needs 'brew install lzo' first, see AGENTS.md)"; exit 2
-  fi
+  need_python
   "$PY" tools/build_core.py
+  if [ ! -d dictionaries ]; then echo "dictionaries/ not found: only core.db built (the APK needs nothing else)"; return; fi
+  if [ -f dictionaries/nhk-accent-2016/nhk-accent-2016.json ]; then echo "-- pitch_nhk2016"; "$PY" tools/build_pitch.py nhk2016
+  else echo "-- pitch_nhk2016: source missing, skipped"; fi
   # id:source file (tools/paths.py); a dictionary whose source is missing is skipped
   for pair in daijisen:daijisen/daijisen.mdx meikyo3:meikyo3/meikyo3.mdx \
               shinmeikai8:shinmeikai8/shinmeikai8.zip daijirin4:daijirin4/daijirin4.zip \
@@ -50,7 +56,7 @@ data() {
 
 check() {
   step "Data pack checks"
-  if [ -f datapacks/core.db ]; then "$PY" tools/tests/check_packs.py | tail -3; else echo "datapacks/ not generated: skipped"; fi
+  if [ -f datapacks/core.db ]; then "$PY" tools/tests/check_packs.py | tail -4; else echo "datapacks/ not generated: skipped"; fi
 }
 
 test_jvm() {
@@ -69,6 +75,8 @@ PY
 
 apk() {
   step "Release APK"
+  # core.db goes into the APK: build it if missing (open data only, ~15 s)
+  if [ ! -f datapacks/core.db.zst ]; then need_python; "$PY" tools/build_core.py; fi
   ./gradlew :app:assembleRelease -q
   version=$(sed -n 's/.*"versionName" *: *"\([^"]*\)".*/\1/p' app/build/outputs/apk/release/output-metadata.json | head -1)
   mkdir -p dist
@@ -97,9 +105,10 @@ install_apk() {
 push() {
   step "Copy data packs to the phone"
   need_phone
-  ls datapacks/*.db >/dev/null 2>&1 || { echo "datapacks/ is empty: run scripts/deploy.sh data"; exit 2; }
+  ls datapacks/dict_*.db datapacks/pitch_*.db >/dev/null 2>&1 || { echo "No packs in datapacks/: run scripts/deploy.sh data"; exit 2; }
   adb shell mkdir -p /sdcard/Download/jisho
-  adb push datapacks/core.db datapacks/dict_*.db /sdcard/Download/jisho/
+  adb shell rm -f /sdcard/Download/jisho/core.db   # left from before core.db came with the app
+  adb push datapacks/dict_*.db datapacks/pitch_*.db /sdcard/Download/jisho/
   echo "In the app, pick the folder Download/jisho to import (first launch, or Settings > Reimport)."
 }
 

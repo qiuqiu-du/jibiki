@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Manual dependency container: the app is small enough not to need a DI framework. */
 class JishoApp : Application() {
@@ -72,7 +73,16 @@ class JishoApp : Application() {
         // Follow the setting; Kuromoji (about a second to build) loads in the background,
         // and mode A uses the rule table alone until it is ready.
         appScope.launch {
-            settings.dictPrefs.collect { dictPrefs = it; _resultsVersion.update { v -> v + 1 } }
+            settings.dictPrefs.collect { p ->
+                dictPrefs = p
+                // A dictionary turned off is not consulted for accents or ranking either: core.db
+                // is rebuilt without it (about a second; searches meanwhile use the old one).
+                if (dataPacks.setDisabled(p.disabled) && dataPacks.coreFile.exists()) {
+                    withContext(Dispatchers.IO) { dataPacks.prepareCore() }
+                    repository.reopen()
+                }
+                _resultsVersion.update { v -> v + 1 }
+            }
         }
         // Android 12+ keeps a per-app light/dark choice and applies it before the first frame
         // (no flash, and web pages and system bars follow it); older versions only get the

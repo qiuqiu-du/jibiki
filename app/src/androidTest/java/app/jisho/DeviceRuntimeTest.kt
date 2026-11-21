@@ -46,7 +46,8 @@ class DeviceRuntimeTest {
     @Test
     fun lemmaTestSetOnAndroid() {
         val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as JishoApp
-        assumeTrue("import the data packs in the app first", app.dataPacks.isReady())
+        app.dataPacks.prepareCore() // the test run reinstalled the app: core.db is rebuilt first
+        assumeTrue("push the data packs first (scripts/push-datapacks.sh)", app.dataPacks.isReady())
         val core = app.dataPacks.openCore()
         val validator = LemmaValidator(core)
         val lemmatizer = CombinedLemmatizer({ app.kuromoji.load() }, app.rules)

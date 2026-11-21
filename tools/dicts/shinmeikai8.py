@@ -1,6 +1,7 @@
 """新明解国語辞典 第八版 (Yomitan structured content)."""
 import html
 import json
+import re
 import urllib.parse
 import zipfile
 
@@ -8,7 +9,7 @@ import paths
 from dicts.base import Adapter, SourceEntry
 from lib.gaiji import Gaiji
 from lib.markup import DROP, UNWRAP, emit, text
-from lib.textnorm import has_japanese, is_kana, kata_to_hira
+from lib.textnorm import circled_to_numbers, has_japanese, is_kana, kata_to_hira
 from readers.yomitan_reader import read_grouped, read_index
 
 def _svg_files():
@@ -142,3 +143,62 @@ def load() -> Adapter:
         aliases = list(dict.fromkeys(t.term for t in group))
         entries.append(SourceEntry(str(first.sequence), title, reading, spellings, body, aliases))
     return Adapter("shinmeikai8", index.get("title", ""), index.get("revision", ""), entries, rule, link_target, GAIJI)
+
+
+# Headword accents and ＊＊/＊ marks for the pack's pitch tables (build_dict.add_pitch).
+PITCH_SOURCE = "smk8"
+
+
+def pitch_heads():
+    """(spelling, hiragana reading, [accent numbers], importance) from the headwords.
+    importance: 2 = ＊＊ (most basic words), 1 = ＊ (basic), 0 = unmarked.
+
+    Rows of one entry share a sequence number; when the entry has a kanji
+    spelling we only emit kanji rows, so a kana row cannot hit a homophone."""
+    def head_accents(node, inside=False):
+        found = []
+        if isinstance(node, list):
+            for n in node:
+                found += head_accents(n, inside)
+        elif isinstance(node, dict):
+            name = (node.get("data") or {}).get("name", "")
+            if name in ("子見出部", "解説部", "子解説部"):
+                return found
+            if inside and re.fullmatch(r"accent\d*", name or ""):
+                found += circled_to_numbers(_head_text(node))
+                return found
+            found += head_accents(node.get("content"), inside or name == "見出部")
+        return found
+
+    for group in read_grouped(paths.SHINMEIKAI8):
+        nums = list(dict.fromkeys(head_accents(group[0].content)))
+        head = _find_name(group[0].content, "見出部")
+        mark = _head_text(head) if head else ""
+        importance = 2 if mark.startswith("＊＊") else 1 if mark.startswith("＊") else 0
+        kanji_terms = [t for t in group if not is_kana(t.term) and t.term != t.reading]
+        for t in kanji_terms or group[:1]:
+            yield t.term, kata_to_hira(t.reading), nums, importance
+
+
+def _find_name(node, name):
+    if isinstance(node, list):
+        for n in node:
+            r = _find_name(n, name)
+            if r is not None:
+                return r
+    elif isinstance(node, dict):
+        if (node.get("data") or {}).get("name") == name:
+            return node
+        return _find_name(node.get("content"), name)
+    return None
+
+
+def _head_text(node):
+    """Plain text of a headword node, as the accents were always read (ruby and pictures kept)."""
+    if isinstance(node, str):
+        return node
+    if isinstance(node, list):
+        return "".join(_head_text(n) for n in node)
+    if isinstance(node, dict):
+        return _head_text(node.get("content", ""))
+    return ""

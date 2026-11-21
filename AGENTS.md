@@ -42,7 +42,7 @@ dict/
 │   ├── shinseiki-jc/    外研社 新世纪日汉双解大辞典（M5 ③，可停用）
 │   ├── gendai-jc/       现代日汉双解词典 修订版（暂不做）
 │   └── kodansha-jc/     讲谈社 日本語大辞典 / 日汉大辞典 双解版（暂不做）
-├── sources/         自动下载的开放数据：JMdict_e.gz、Kanjium accents.txt（不提交）
+├── sources/         开放数据（不提交）：JMdict_e.gz、Kanjium accents.txt 自动下载；jiten/frequency_list_global.csv 要手动从 jiten.moe/frequency-dictionaries 下载（网站拒绝脚本访问）
 ├── tools/           电脑端 Python 脚本：.mdx / .zip / .json → SQLite 数据包
 ├── datapacks/       生成的数据包（不提交，用 adb push 到手机）
 └── app/             Android 工程（M1 阶段创建）
@@ -69,8 +69,8 @@ dict/
 - **音调来源顺序**：NHK 2016 → 新明解第八版自带的音调数字 → Kanjium。不再解析 NHK 1998 年版的图片编码。
 - **转换脚本输入格式**：MDict、Yomitan、NHK JSON；手机端只认生成的 `.db`。
 - **只用文字**：不使用 .mdd 多媒体包里的插图和音频；只从中取出外字小图片（三部辞书合计约 140 种、90 KB）。
-- **词库不打包进 APK**：首次启动时从手机存储导入数据包。
-- **体积**：APK ≤ 30 MB，数据包合计 ≤ 200 MB（2026-11-21 从 110 MB 放宽；现在 100.4 MB，M5 后预计约 175 MB）。
+- **有版权的词库不打包进 APK**（2026-11-22 修改）：APK 里只带开放数据的 `core.db`（JMdict + Kanjium 音调，压缩后约 9 MB），装好就能查词；辞书正文、NHK 和新明解、大辞林的音调、新明解的基本词记号都在各自的数据包里，首次使用时从手机存储导入（可选），导入时并进 App 自己那份 core.db（见 design-spec 3.6）。
+- **体积**：APK ≤ 50 MB（2026-11-22 从 30 MB 放宽），数据包合计 ≤ 200 MB（2026-11-21 从 110 MB 放宽）。
 - **分词器**：Kuromoji + IPADIC（默认）和活用规则表（可在设置中切换）都实现 `Lemmatizer` 接口；Sudachi 不做（2026-11-21 放弃）。所有候选都必须经过 JMdict 校验。
 - **明确不做**：显示注音开关、Sudachi（2026-11-21 放弃）、拍照识别、其他应用划词查询、发音朗读、背词复习、笔记、账号、评论或社区、AI 问答、广告、统计 SDK。
 
@@ -101,7 +101,8 @@ dict/
 数据包（在仓库根目录运行；先 core，再各辞书）：
 
 ```bash
-tools/.venv/bin/python tools/build_core.py                 # → datapacks/core.db（约 10 秒）
+tools/.venv/bin/python tools/build_core.py                 # → datapacks/core.db 和 core.db.zst（只用开放数据，打进 APK；约 15 秒）
+tools/.venv/bin/python tools/build_pitch.py nhk2016        # → pitch_nhk2016.db（只有音调的数据包）
 tools/.venv/bin/python tools/build_dict.py daijisen        # → dict_daijisen.db（约 1 分钟）
 tools/.venv/bin/python tools/build_dict.py meikyo3
 tools/.venv/bin/python tools/build_dict.py shinmeikai8
@@ -184,7 +185,8 @@ adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920
   - 需要看真 App 时，用 `adb shell uiautomator dump` 读出屏幕上的文字和坐标（Compose 的文字也在里面），比截图快、能直接算点击位置；只有看颜色、对齐时才截图。
 - **拖动排序（`Reorder.kt`）**：LazyColumn 按 key 记住第一行，把行拖进或拖出第一个可见位置时，列表会跟着那一行滚走，所以交换时用 `requestScrollToItem` 按序号保持位置；靠边自动滚动只在手指朝那个方向移动过之后才开始。
 - **zstd-jni 版本固定在 1.5.7-12**：1.5.7-14 起要求 compileSdk 37，而 AGP 8.13 最高只支持 36。
-- **改了 core.db 表结构**：要同时升 `tools/build_core.py` 的 `CORE_SCHEMA_VERSION` 和 `DataPackManager.CORE_SCHEMA_VERSION`；手机上需要重新推送并导入。
+- **改了 core.db 表结构**：要同时升 `tools/build_core.py` 的 `CORE_SCHEMA_VERSION` 和 `DataPackManager.CORE_SCHEMA_VERSION`，重打 APK 即可（core.db 随 APK 走）。改了数据包表结构（`tools/lib/packdb.py`、`lib/pitch.py`）要升 `DICT_SCHEMA_VERSION`（两边），手机上重新推送并导入数据包。
+- **App 里的 core.db 是合并出来的**：`DataPackManager.prepareCore` 把 APK 里的 `core.db.zst` 解压，再把各数据包的 `pitch`、`entry_score` 表并进去（`CoreComposer`）；App 更新或数据包变化后（`core.stamp` 记录）的第一次启动重做一次，约 1 秒，期间显示「正在准备词库」。JVM 测试的 `TestPacks.coreFile` 用同一段代码合并，`TestPacks.bundledCore` 是没有任何数据包时的样子。
 - **JVM 测试通过 ≠ 手机上能跑**：Android 的正则引擎是 ICU，不支持 `(?U)` 这类桌面 Java 的写法，曾导致一输入就闪退。纯 Kotlin 代码里用到正则、`java.text`、字符集的，都要在 `DeviceRuntimeTest` 里在真机上跑一遍。
 - **真机测试默认会卸载 App**：`gradle.properties` 里已设置 `android.injected.androidTest.leaveApksInstalledAfterRun=true`，不要删，否则跑完测试导入的数据包会被清空。
 - **真机性能测试要在前台、亮屏、固定条件下跑**：
@@ -207,7 +209,7 @@ adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920
 - **Anki 导出要用 Anki 实测**：`.apkg` 是 Anki 旧版（schema 11）集合，字段多、容易写错。改了 `AnkiPackage.kt` 后，用单独的虚拟环境装 Anki 官方库（`pip install anki`，不要装进 `tools/.venv`）跑 `python tools/tests/check_anki.py 文件.apkg`。JVM 测试会把样例包写到系统临时目录的 `jisho-test.apkg`。
 - **系统文件选择器**：导出、导入、备份、恢复都走系统的保存/打开界面。平时自动化测试不去点它（会在用户手机上留下文件）；逻辑靠 JVM 和真机测试覆盖，用户要求验证时才在手机上实际走一遍。
 - **导入 CSV 的编码**：Windows 版 Excel 存的「CSV」是 ANSI（中文系统 GBK、日文系统 Shift-JIS），`TextEncoding` 两种都试、按文字特征打分选一个；改打分规则后跑 `UserDataTest.ansiCsvIsReadInEitherCodePage`。
-- **APK 体积已接近上限**：M3 后 release 26.0 MB（M2 25.9 MB）（上限 30 MB），其中 Kuromoji 词典约 13 MB、手写识别原生库约 7 MB。再加依赖前先算体积。
+- **APK 体积**：上限 50 MB。其中 Kuromoji 词典约 13 MB、手写识别原生库约 7 MB、内置 core.db 约 9 MB。再加依赖前先算体积。
 - **Kuromoji 打包**：两个 jar 都带 `META-INF/CONTRIBUTORS.md`，已在 `packaging` 里排除；release 包靠 `proguard-rules.pro` 保留 Kuromoji 的类。
 - **手写模型**：ML Kit 的日语模型首次使用时从 Google 下载（约 20 MB），已下载后，App 每次启动后第一次打开手写面板，检查模型状态约 0.75 秒（真机实测；纯本地，不联网，时间花在 ML Kit 下载管理组件的一次性初始化；同一进程里再查只要几毫秒），第一次识别约 0.1 秒；`DevicePerformanceTest.handwritingModelLoadTimes` 会测这几个数。面板靠设置里记住的「模型已就绪」直接打开，检查在后台做（`HandwritingViewModel.checkModel`）。App 因此带有联网权限（ML Kit 自动加入），除此之外不联网。下载按钮由用户点，不要替用户点。
 - **分词器实测**：对单个词，Kuromoji 和 Sudachi 的还原结果几乎一样。但遇到歧义词，它们只给一个答案，例如「いった」「読めない」，所以需要规则表补充候选。

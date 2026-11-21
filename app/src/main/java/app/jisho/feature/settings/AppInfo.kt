@@ -35,7 +35,7 @@ fun interface AppInfoSource {
  */
 class AndroidAppInfoSource(private val context: Context, private val packs: DataPackManager) : AppInfoSource {
     override suspend fun read(): AppInfo = withContext(Dispatchers.IO) {
-        val files = listOf(packs.coreFile) + packs.dictionaryFiles()
+        val files = listOf(packs.coreFile) + packs.dictionaryFiles() + packs.pitchFiles()
         AppInfo(
             version = BuildConfig.VERSION_NAME,
             packs = files.filter { it.exists() }.map { f ->

@@ -228,7 +228,8 @@ class DeviceUiTest {
 
     /** Entry page: the default-expand setting decides which dictionaries show their entries. */
     @Test fun entryPageExpandsDictionariesAsSet() = runBlocking {
-        assumeTrue("import the data packs in the app first", app.dataPacks.isReady())
+        app.dataPacks.prepareCore() // the test run reinstalled the app: core.db is rebuilt first
+        assumeTrue("push the data packs first (scripts/push-datapacks.sh)", app.dataPacks.isReady())
         val id = app.repository.search("光").words.first { it.exact }.entryId
         val sections = app.repository.entry(id)!!.definitions.filter { it.second.isNotEmpty() }
         assumeTrue("needs a word in several dictionaries", sections.size >= 2)

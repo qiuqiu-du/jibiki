@@ -25,6 +25,32 @@ if (!hasReleaseKey && providers.gradleProperty("requireReleaseSigning").orNull =
     throw GradleException("Release signing required but keystore.properties / JISHO_* variables are missing")
 }
 
+/**
+ * Puts datapacks/core.db.zst (open data, built by tools/build_core.py) into the APK's assets;
+ * the app unpacks it on first start (DataPackManager.prepareCore). Copyrighted packs never
+ * go into the APK.
+ */
+abstract class BundleCoreTask : DefaultTask() {
+    @get:InputFiles abstract val source: ConfigurableFileCollection
+    @get:OutputDirectory abstract val output: DirectoryProperty
+
+    @TaskAction
+    fun run() {
+        val file = source.singleFile
+        if (!file.exists()) throw GradleException("${file.path} is missing: run tools/.venv/bin/python tools/build_core.py (or scripts/deploy.sh)")
+        val dir = output.get().asFile
+        dir.deleteRecursively(); dir.mkdirs()
+        file.copyTo(File(dir, file.name))
+    }
+}
+
+val bundleCore = tasks.register<BundleCoreTask>("bundleCore") {
+    source.from(rootProject.file("datapacks/core.db.zst"))
+}
+androidComponents {
+    onVariants { variant -> variant.sources.assets?.addGeneratedSourceDirectory(bundleCore, BundleCoreTask::output) }
+}
+
 // versionCode must grow for an update to install over the old APK: the commit count does.
 val commitCount: Int = providers.exec { commandLine("git", "rev-list", "--count", "HEAD"); isIgnoreExitValue = true }
     .standardOutput.asText.map { it.trim().toIntOrNull() ?: 1 }.getOrElse(1)
@@ -64,6 +90,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    // Already zstd-compressed; stored as is so the APK doesn't deflate it again.
+    androidResources { noCompress += "zst" }
     buildFeatures {
         compose = true
         buildConfig = true

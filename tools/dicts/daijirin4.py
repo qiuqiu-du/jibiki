@@ -113,3 +113,29 @@ def load() -> Adapter:
         entries.append(SourceEntry(str(first.sequence), title, reading, spellings, body, aliases))
     return Adapter("daijirin4", index.get("title", "").replace("　", " "), index.get("revision", ""),
                    entries, rule, link_target, GAIJI, post)
+
+
+# Headword accents for the pack's pitch table (build_dict.add_pitch); no importance marks.
+PITCH_SOURCE = "daijirin4"
+
+
+def pitch_heads():
+    """(spelling, hiragana reading, [accent numbers], 0) from the headwords' accent nodes
+    ([0], [2]); like Shinmeikai, kanji rows only when the entry has a kanji spelling."""
+    def accents(node, inside=False):
+        found = []
+        if isinstance(node, list):
+            for n in node:
+                found += accents(n, inside)
+        elif isinstance(node, dict):
+            name = (node.get("data") or {}).get("name", "")
+            if inside and name == "accent":
+                return found + re.findall(r"\[(\d+)\]", _title(node.get("content", "")))
+            found += accents(node.get("content"), inside or name == "見出部")
+        return found
+
+    for group in read_grouped(paths.DAIJIRIN4):
+        nums = list(dict.fromkeys(accents(group[0].content)))
+        kanji_terms = [t for t in group if not is_kana(t.term) and t.term != t.reading]
+        for t in kanji_terms or group[:1]:
+            yield t.term, kata_to_hira(t.reading), nums, 0

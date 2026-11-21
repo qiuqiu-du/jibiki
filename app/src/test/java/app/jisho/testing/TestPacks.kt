@@ -10,6 +10,7 @@ import app.jisho.core.database.CoreDb
 import app.jisho.core.database.DictDb
 import app.jisho.core.database.SqlDb
 import app.jisho.core.database.SqlRow
+import app.jisho.core.datapack.CoreComposer
 import org.junit.Assume.assumeTrue
 import java.io.File
 import java.sql.Connection
@@ -51,10 +52,22 @@ class JdbcSqlDb(file: File) : SqlDb {
 /** Access to datapacks/ for tests. Tests that need it are skipped when the packs are absent. */
 object TestPacks {
     val dir = File(System.getProperty("datapacks.dir") ?: "../datapacks")
-    val coreFile = File(dir, "core.db")
+    /** core.db as tools/build_core.py writes it: open data only, bundled with the app. */
+    val bundledCore = File(dir, "core.db")
+
+    /** core.db as the app reads it with every pack imported: [bundledCore] + the packs' pitch and scores. */
+    val coreFile: File by lazy {
+        val packs = dir.listFiles { f -> (f.name.startsWith("dict_") || f.name.startsWith("pitch_")) && f.name.endsWith(".db") }
+            .orEmpty().sortedBy { it.name }
+        File.createTempFile("jisho-core", ".db").also { f ->
+            f.deleteOnExit()
+            bundledCore.copyTo(f, overwrite = true)
+            JdbcWritableDb(f).use { CoreComposer.compose(it, packs) }
+        }
+    }
     val dictionaryIds = listOf("daijisen", "daijirin4", "meikyo3", "shinmeikai8", "shogakukan_jc3", "shinseiki_jc")
 
-    fun assumePresent() = assumeTrue("data packs not generated (run tools/build_*.py)", coreFile.exists())
+    fun assumePresent() = assumeTrue("data packs not generated (run tools/build_*.py)", bundledCore.exists())
 
     fun core(usuallyKanaMask: Int = 1) = CoreDb(JdbcSqlDb(coreFile), usuallyKanaMask)
 

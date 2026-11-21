@@ -2,10 +2,11 @@
 <!-- Interface text; dictionary terms (parts of speech, inflection labels) stay Japanese (values/). -->
 <resources>
     <string name="import_title">データパックのインポート</string>
-    <string name="import_body">初めて使うときはデータパックのインポートが必要です。\n\n1. パソコンで実行：adb push datapacks/ /sdcard/Download/jisho/\n2. 下のボタンを押して Download/jisho フォルダを選びます。</string>
+    <string name="import_body">データパックは任意です。オフラインの語釈と追加のアクセントはデータパックから読み込みます。なくても検索できます。\n\n1. パソコンで実行：adb push datapacks/ /sdcard/Download/jisho/\n2. 下のボタンを押して Download/jisho フォルダを選びます。</string>
     <string name="import_pick_folder">フォルダを選択</string>
     <string name="import_copying">%1$s をインポート中（%2$d/%3$d）</string>
-    <string name="import_no_core">選んだフォルダに core.db がありません</string>
+    <string name="import_no_packs">選んだフォルダにデータパック（dict_*.db、pitch_*.db）がありません</string>
+    <string name="core_preparing">辞書データを準備しています…</string>
     <string name="import_bad_version">%1$s のバージョンが合いません。データパックを作り直してください</string>
     <string name="import_failed">インポートに失敗しました：%1$s</string>
     <string name="search_hint">漢字・かな・ローマ字で入力</string>
@@ -63,6 +64,7 @@
     <string name="settings_handwriting_delete_text">%1$s が空きます。再び使うにはダウンロードが必要です。</string>
     <string name="settings_storage">容量とバージョン</string>
     <string name="settings_storage_total">合計 %1$s：データパック %2$s、手書きモデル %3$s、お気に入りと履歴 %4$s</string>
+    <string name="settings_open_data">内蔵データ：JMdict（EDRDG）、Kanjium、Jiten 頻度表（CC BY-SA 4.0）</string>
     <string name="settings_version">バージョン %1$s</string>
     <string name="settings_dictionaries_desc">単語ページはこの順に表示。オフの辞書は表示も検索もしません。</string>
     <string name="settings_move_up">上へ</string>

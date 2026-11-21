@@ -32,8 +32,8 @@ class RankingTest {
         return if (idx < 0) null else idx + 1
     }
 
-    private fun evaluate(mask: Int): Pair<Int, List<String>> {
-        TestPacks.core(mask).use { core ->
+    private fun evaluate(mask: Int, file: java.io.File = TestPacks.coreFile): Pair<Int, List<String>> {
+        CoreDb(app.jisho.testing.JdbcSqlDb(file), mask).use { core ->
             val misses = cases.mapNotNull { c ->
                 val r = rank(core, c)
                 if (r != null && r <= c.maxRank) null else "${c.query} → ${c.expected}: rank ${r ?: ">20"} (max ${c.maxRank})"
@@ -52,6 +52,18 @@ class RankingTest {
         missesAny.forEach { println("  miss: $it") }
         assertTrue("main-sense rule must not be worse than any-sense", hitsMain >= hitsAny)
         assertTrue("hit rate ${hitsMain}/${cases.size}; misses: $missesMain", hitsMain >= cases.size * 0.95)
+    }
+
+    /**
+     * With only the app (bundled core: JMdict raised by Jiten's frequency, no 新明解 pack) the
+     * ranking must stay close: 2026-11-22, 115/117 (with the pack 117/117).
+     */
+    @Test
+    fun bundledCoreAloneRanksWell() {
+        val (hits, misses) = evaluate(mask = 1, file = TestPacks.bundledCore)
+        println("Ranking hit rate, bundled core only: $hits/${cases.size}")
+        misses.forEach { println("  miss: $it") }
+        assertTrue("hit rate $hits/${cases.size}; misses: $misses", hits >= cases.size - 3)
     }
 
     /** Every very common kanji word must be in the top 3 when typed exactly (homographs share a key). */

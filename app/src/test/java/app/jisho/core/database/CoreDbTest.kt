@@ -13,7 +13,7 @@ class CoreDbTest {
 
     @Before fun packs() = TestPacks.assumePresent()
 
-    @Test fun schemaVersionMatchesApp() = assertEquals(4, core.schemaVersion)
+    @Test fun schemaVersionMatchesApp() = assertEquals(app.jisho.core.datapack.DataPackManager.CORE_SCHEMA_VERSION, core.schemaVersion)
 
     @Test
     fun entryHasFormsPosAndPitch() {

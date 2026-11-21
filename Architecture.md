@@ -13,7 +13,7 @@
 | 只给自己用 | 不发布、不分发；辞书数据包和 APK 都不外传 |
 | 离线优先 | 只有「コトバンク / Weblio」网页页签和手写模型的首次下载会联网，没有自己的服务器和网络 API |
 | 查询方向 | 只做**日→日**（第一版）和**日→中**（M5）。输入的是日语（假名、汉字、罗马音、手写）；不做中→日反查，也不做日→英 |
-| 体积预算 | APK ≤ 30 MB；词库数据包合计 ≤ 90 MB；词库**不打包进 APK** |
+| 体积预算 | APK ≤ 50 MB（含开放数据的 core.db）；数据包合计 ≤ 200 MB；有版权的词库**不打包进 APK** |
 | 性能预算 | 候选列表 ≤ 50 ms；词条页离线部分 ≤ 150 ms；冷启动到可输入 ≤ 800 ms |
 | 目标设备 | 荣耀 PPG-AN00（Android 17 / API 37）；minSdk 29；targetSdk 跟随最新稳定版 |
 
@@ -56,7 +56,8 @@ dict/                                   # 仓库根目录
 │   ├── readers/                        # mdx_reader.py / yomitan_reader.py / nhk2016_reader.py，输出统一中间结构
 │   ├── dicts/                          # 每部辞书一个适配器：词头解析、标签映射规则
 │   ├── lib/                            # textnorm（查询键规范化）、markup（正文标记转换）、packdb（表结构、zstd）
-│   ├── build_core.py                   # JMdict + 音调（NHK 2016 / 新明解8 / Kanjium）→ core.db
+│   ├── build_core.py                   # JMdict + Kanjium 音调 → core.db（开放数据，打进 APK）
+│   ├── build_pitch.py                  # NHK 2016 → pitch_nhk2016.db（只有音调的数据包）
 │   ├── build_dict.py                   # 大辞泉 / 明鏡 / 新明解 → dict_<id>.db
 │   └── tests/check_packs.py            # 音调、对齐、标签、链接抽查
 ├── datapacks/                          # 生成的数据包（不提交到 git，用 adb push 到手机）

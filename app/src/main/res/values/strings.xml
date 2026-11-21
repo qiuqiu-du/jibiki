@@ -4,10 +4,11 @@
 
     <!-- Import -->
     <string name="import_title">导入数据包</string>
-    <string name="import_body">首次使用需要导入数据包。\n\n1. 在电脑上运行：adb push datapacks/ /sdcard/Download/jisho/\n2. 点下面的按钮，选择 Download/jisho 文件夹。</string>
+    <string name="import_body">辞书数据包可选：离线释义和更多音调来自数据包，没有也能查词。\n\n1. 在电脑上运行：adb push datapacks/ /sdcard/Download/jisho/\n2. 点下面的按钮，选择 Download/jisho 文件夹。</string>
     <string name="import_pick_folder">选择文件夹</string>
     <string name="import_copying">正在导入 %1$s（%2$d/%3$d）</string>
-    <string name="import_no_core">所选文件夹里没有 core.db</string>
+    <string name="import_no_packs">所选文件夹里没有数据包（dict_*.db、pitch_*.db）</string>
+    <string name="core_preparing">正在准备词库…</string>
     <string name="import_bad_version">%1$s 的版本不对，请重新生成数据包</string>
     <string name="import_failed">导入失败：%1$s</string>
 
@@ -116,6 +117,7 @@
     <string name="settings_handwriting_delete_text">释放 %1$s。再用手写需重新下载。</string>
     <string name="settings_storage">存储与版本</string>
     <string name="settings_storage_total">共占用 %1$s：数据包 %2$s、手写模型 %3$s、收藏与历史 %4$s</string>
+    <string name="settings_open_data">内置数据：JMdict（EDRDG）、Kanjium、Jiten 词频（CC BY-SA 4.0）</string>
     <string name="settings_version">版本 %1$s</string>
     <string name="settings_dictionaries_desc">词条页按此顺序显示；关闭的辞书不显示、不参与搜索。</string>
     <string name="settings_move_up">上移</string>

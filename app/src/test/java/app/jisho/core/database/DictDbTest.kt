@@ -16,7 +16,7 @@ class DictDbTest {
     fun allThreeDictionariesPresentWithCurrentFormats() {
         assertEquals(TestPacks.dictionaryIds, dicts.map { it.dictId })
         dicts.forEach {
-            assertEquals(it.dictId, 2, it.schemaVersion)
+            assertEquals(it.dictId, app.jisho.core.datapack.DataPackManager.DICT_SCHEMA_VERSION, it.schemaVersion)
             assertEquals(it.dictId, 1, it.bodyFormat)
             assertTrue(it.title.isNotBlank())
         }

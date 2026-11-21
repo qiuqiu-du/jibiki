@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 sealed interface ImportUiState {
     data object Idle : ImportUiState
     data class Copying(val name: String, val index: Int, val total: Int) : ImportUiState
+    data object Preparing : ImportUiState
     data class Error(val messageRes: Int, val arg: String = "") : ImportUiState
     data object Done : ImportUiState
 }
@@ -51,7 +52,8 @@ class ImportViewModel(
                 packs.importFromTree(tree) { p ->
                     _state.value = when (p) {
                         is DataPackManager.Progress.Copying -> ImportUiState.Copying(p.name, p.index, p.total)
-                        DataPackManager.Progress.NoCore -> ImportUiState.Error(R.string.import_no_core)
+                        DataPackManager.Progress.Preparing -> ImportUiState.Preparing
+                        DataPackManager.Progress.NoPacks -> ImportUiState.Error(R.string.import_no_packs)
                         is DataPackManager.Progress.BadVersion -> ImportUiState.Error(R.string.import_bad_version, p.name)
                         DataPackManager.Progress.Done -> { repository.reopen(); ImportUiState.Done }
                     }
@@ -85,12 +87,16 @@ fun ImportScreen(viewModel: ImportViewModel, onDone: () -> Unit) {
                 Text(stringResource(R.string.import_copying, s.name, s.index, s.total))
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
+            ImportUiState.Preparing -> {
+                Text(stringResource(R.string.core_preparing))
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
             is ImportUiState.Error -> Text(
                 stringResource(s.messageRes, s.arg), color = MaterialTheme.colorScheme.error,
             )
             else -> Unit
         }
-        if (state !is ImportUiState.Copying) {
+        if (state !is ImportUiState.Copying && state !is ImportUiState.Preparing) {
             Button(onClick = { picker.launch(DEFAULT_FOLDER) }) { Text(stringResource(R.string.import_pick_folder)) }
         }
     }

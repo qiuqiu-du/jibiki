@@ -13,24 +13,6 @@ import zstandard
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import paths  # noqa: E402
 
-# (headword, reading, expected accent) — verified against NHK / standard references.
-PITCH = [
-    ("食べる", "たべる", "2"), ("橋", "はし", "2"), ("箸", "はし", "1"), ("端", "はし", "0"),
-    ("雨", "あめ", "1"), ("飴", "あめ", "0"), ("生物", "せいぶつ", "1"), ("昨日", "きのう", "2"),
-    ("日本", "にほん", "2"), ("行く", "いく", "0"), ("読む", "よむ", "1"), ("先生", "せんせい", "3"),
-    ("学校", "がっこう", "0"), ("東京", "とうきょう", "0"), ("綺麗", "きれい", "1"),
-    ("大丈夫", "だいじょうぶ", "3"), ("花", "はな", "2"), ("鼻", "はな", "0"), ("箱", "はこ", "0"),
-    ("犬", "いぬ", "2"), ("猫", "ねこ", "1"), ("山", "やま", "2"), ("川", "かわ", "2"),
-    ("水", "みず", "0"), ("友達", "ともだち", "0"), ("勉強", "べんきょう", "0"),
-    ("始める", "はじめる", "0"), ("見る", "みる", "1"), ("来る", "くる", "1"), ("為る", "する", "0"),
-    ("言う", "いう", "0"), ("話す", "はなす", "2"), ("書く", "かく", "1"), ("赤い", "あかい", "0"),
-    ("白い", "しろい", "2"), ("高い", "たかい", "2"), ("新しい", "あたらしい", "4"),
-    ("電話", "でんわ", "0"), ("時計", "とけい", "0"), ("朝", "あさ", "1"), ("昼", "ひる", "2"),
-    ("夜", "よる", "1"), ("今日", "きょう", "1"), ("明日", "あした", "3"), ("箸", "はし", "1"),
-    ("柿", "かき", "0"), ("牡蠣", "かき", "1"), ("神", "かみ", "1"), ("紙", "かみ", "2"),
-    ("髪", "かみ", "2"),
-]
-
 # (dictionary, headword, reading, JMdict ent_seq that must be linked)
 ALIGN = [
     ("daijisen", "食べる", "たべる", 1358280), ("meikyo3", "食べる", "たべる", 1358280),
@@ -62,14 +44,20 @@ def seq_of(core, head, reading):
 
 
 def check_core(core):
-    for head, reading, want in PITCH:
-        seq = seq_of(core, head, reading)
-        row = core.execute("SELECT accent, source FROM pitch WHERE entry_id = ? AND reading = ?",
-                           (seq, reading)).fetchone() if seq else None
-        got = row[0].split(",")[0] if row else None
-        if got != want:
-            fail(f"pitch {head}（{reading}）: want {want}, got {row}")
-    print(f"pitch: {len(PITCH) - sum('pitch' in f for f in failures)}/{len(PITCH)} correct")
+    """core.db is open data only (it ships with the app): JMdict + Kanjium accents. The merged
+    accents (NHK, 新明解, 大辞林 packs) are checked by the app's CoreComposerTest."""
+    sources = dict(core.execute("SELECT source, count(*) FROM pitch GROUP BY source"))
+    if set(sources) != {"kanjium"}:
+        fail(f"core.db must only hold open accents (kanjium), got {sources}")
+    for p in sorted(paths.DATAPACKS.glob("pitch_*.db")) + sorted(paths.DATAPACKS.glob("dict_*.db")):
+        conn = sqlite3.connect(p)
+        meta = dict(conn.execute("SELECT key, value FROM meta"))
+        if "pitch_priority" in meta:
+            n = conn.execute("SELECT count(*) FROM pitch").fetchone()[0]
+            s = conn.execute("SELECT count(*) FROM entry_score").fetchone()[0]
+            print(f"{p.name}: pitch {n} rows ({meta['pitch_source']}, priority {meta['pitch_priority']}), scores {s}")
+        conn.close()
+    print(f"core.db pitch: {sources}")
 
 
 def open_pack(dict_id):

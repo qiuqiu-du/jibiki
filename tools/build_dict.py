@@ -13,10 +13,12 @@ import sys
 import zstandard
 
 import paths
+from lib import pitch
 from lib.markup import convert, plain_text, resolve_links
 from lib.packdb import (BODY_FORMAT_VERSION, DICT_SCHEMA, DICT_SCHEMA_VERSION, ZSTD_LEVEL,
                         fresh_db, finish_db, train_zdict, write_meta)
 from lib.textnorm import kata_to_hira, search_key
+from lib.pitch import JmdictIndex
 from readers.jmdict_reader import read_jmdict
 
 ADAPTERS = {"daijisen": "dicts.daijisen", "meikyo3": "dicts.meikyo3", "shinmeikai8": "dicts.shinmeikai8",
@@ -83,8 +85,25 @@ def alias_keys(alias):
     return [search_key(p) for p in parts if p.strip()]
 
 
+def add_pitch(conn, source, heads):
+    """The dictionary's headword accents (and ＊＊/＊ importance marks), aligned to JMdict:
+    the app merges them into its core.db (lib/pitch.py)."""
+    print("pitch accents ...", flush=True)
+    index = JmdictIndex()
+    accents = pitch.Pitch()
+    importance = collections.Counter()
+    heads = list(heads)
+    accents.apply(index, [(h, r, n) for h, r, n, _ in heads if n])
+    for h, r, _n, imp in heads:
+        for seq in index.seqs(h, r):
+            importance[seq] = max(importance[seq], imp)
+    scores = {s: pitch.score(index.freq[s], imp) for s, imp in importance.items() if imp}
+    pitch.write(conn, source, accents, {s: v for s, v in scores.items() if v != index.freq[s]})
+
+
 def main(dict_id):
-    adapter = importlib.import_module(ADAPTERS[dict_id]).load()
+    module = importlib.import_module(ADAPTERS[dict_id])
+    adapter = module.load()
     entries = adapter.entries
     print(f"{dict_id}: {len(entries)} entries", flush=True)
 
@@ -169,6 +188,8 @@ def main(dict_id):
         "revision": adapter.revision,
         "entry_count": len(entries),
     })
+    if hasattr(module, "pitch_heads"):
+        add_pitch(conn, module.PITCH_SOURCE, module.pitch_heads())
     finish_db(conn, out)
 
     raw_mb = sum(len(b) for b in encoded) / 1e6
