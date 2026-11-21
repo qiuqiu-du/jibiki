@@ -51,6 +51,9 @@ class RuleLemmatizer(private val table: RuleTable, private val maxDepth: Int = 7
                 if (f.types != null && r.typesIn.none { it in f.types }) continue
                 val term = f.term.dropLast(r.from.length) + r.to
                 if (term.isEmpty() || !seen.add(term to r.typesOut)) continue
+                // A lone kana is too little to carry an honorific frame: おいしそう is not
+                // お + い(る) + し(する) + そう. One-kanji stems (お見えになる's 見え, 出) are fine.
+                if (HONORIFIC in r.reasons && term.length == 1 && term[0].isKana()) continue
                 // The rule removes the innermost remaining step, so its labels go first.
                 val form = Form(term, r.typesOut, r.reasons + rawLabel + f.reasons)
                 next += form
@@ -101,6 +104,8 @@ class RuleLemmatizer(private val table: RuleTable, private val maxDepth: Int = 7
             }
     }
 }
+
+private fun Char.isKana() = this in '\u3041'..'\u30FF'
 
 internal fun List<String>.dedupeAdjacent(): List<String> =
     filterIndexed { i, s -> i == 0 || this[i - 1] != s }

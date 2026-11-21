@@ -152,6 +152,24 @@ class LemmatizerTest {
         assertTrue(validator.validate(rules.lemmatize("お読みになりました")).any { it.candidate.lemma == "読む" })
     }
 
+    /**
+     * A one-kana stem can't carry an honorific frame: おいしそう is not お + い(る) + し(する) +
+     * そう, おいでになる is not お + い(る) + で... Kanji stems of one character still work.
+     */
+    @Test fun honorificFrameNeedsMoreThanOneKana() {
+        TestPacks.assumePresent()
+        val validator = LemmaValidator(TestPacks.sharedCore)
+        for (input in listOf("おいしそう", "おいしかった", "おしまい", "ごしんぱい", "おみせ")) {
+            for (mode in LemmatizerMode.entries) {
+                val forced = validator.validate(lemmatizer(mode).lemmatize(input)).filter { it.candidate.dropsPrefix }
+                assertEquals("$mode $input", emptyList<String>(), forced.map { it.candidate.lemma })
+            }
+        }
+        assertTrue(validator.validate(rules.lemmatize("お見えになる")).any { it.candidate.lemma == "見える" })
+        assertTrue(validator.validate(rules.lemmatize("おみえになる")).any { it.candidate.lemma == "みえる" })
+        assertTrue(validator.validate(rules.lemmatize("お出かけになった")).any { it.candidate.lemma == "出かける" })
+    }
+
     @Test fun everyReasonHasALabel() {
         val table = RuleLemmatizer.parse(File(TestPacks.RULES).readText())
         val keys = table.rules.flatMap { it.reasons }.toSet() + table.raw.values.filterNotNull()

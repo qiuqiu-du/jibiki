@@ -29,7 +29,7 @@
 | 依赖注入 | 手写容器（`JishoApp` 里用 `by lazy` 创建，ViewModel 用 `viewModelFactory`） | 只有几个对象，不值得引入 Hilt 和注解处理（构建更快、APK 更小） |
 | 本地存储 | 数据包：只读 SQLite，通过 `SqlDb` 接口访问（App 用 Android SQLite，测试用 JDBC）；`user.db`：同样直接用 SQLite，通过可写的 `WritableDb` 接口（`UserStore`）；设置：DataStore | 数据包是电脑上生成好的，用 Room 反而要迁就它的表结构校验；`user.db` 只有三张小表，不用 Room 省掉一个依赖和注解处理，且测试能直接用 JDBC 跑真 SQLite（M4 决定）；查询用查询键的 B 树前缀索引，不用 FTS5 |
 | 压缩 | zstd-jni（带训练字典） | 释义正文按词条单独解压；固定 1.5.7-12，更新的版本要求 compileSdk 37 |
-| 分词 / 形态还原 | Kuromoji + IPADIC（默认）、活用规则表（可切换） | 统一实现 `Lemmatizer` 接口；Sudachi 后期按需 |
+| 分词 / 形态还原 | Kuromoji + IPADIC（默认）、活用规则表（可切换） | 统一实现 `Lemmatizer` 接口（Sudachi 已放弃） |
 | 手写识别 | Google ML Kit Digital Ink Recognition（日语模型） | 首次使用时下载，之后离线 |
 | 网页页签 | Android WebView | 原样显示，不抓取网页内容 |
 | 导航 | Navigation Compose（字符串路由，集中定义在 `navigation/AppNavHost.kt`） | 路由很少，暂不引入序列化插件 |
