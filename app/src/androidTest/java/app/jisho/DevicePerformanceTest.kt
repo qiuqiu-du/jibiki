@@ -1,5 +1,7 @@
 package app.jisho
 
+import androidx.activity.ComponentActivity
+import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.jisho.core.data.DictionaryRepository
@@ -12,6 +14,7 @@ import com.atilika.kuromoji.ipadic.Tokenizer
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -23,11 +26,23 @@ import org.junit.runner.RunWith
 class DevicePerformanceTest {
     private val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as JishoApp
 
+    /**
+     * An empty activity on screen while measuring. MagicOS freezes a process with nothing in the
+     * foreground after about a minute (cgroup freezer, even with the screen on), and the run then
+     * hangs; the activity is the blank one Compose's test manifest declares, so no app UI runs.
+     */
+    @get:Rule val foreground = ActivityScenarioRule(ComponentActivity::class.java)
+
     private fun p95(samples: List<Double>) = samples.sorted()[(samples.size * 0.95).toInt().coerceAtMost(samples.size - 1)]
 
     @Test
     fun searchAndEntryMeetTargets() = runBlocking {
         assumeTrue("import the data packs in the app first", app.dataPacks.isReady())
+        keepScreenOn()
+        // With the screen off the phone dozes and starves this process of CPU: the run then
+        // takes many minutes and every number is wrong, so stop at once instead.
+        val power = app.getSystemService(android.os.PowerManager::class.java)
+        assertTrue("screen is off: keep the phone awake while measuring (scrcpy --stay-awake)", power.isInteractive)
         // Kuromoji build time and heap, measured on a fresh tokenizer (the app's may be loaded already).
         System.gc()
         val heapBefore = usedHeapMb()
@@ -93,6 +108,11 @@ class DevicePerformanceTest {
                 "first candidates ${first.take(3)}\n",
         )
         assertTrue(first.isNotEmpty())
+    }
+
+    /** The blank activity holds the screen on (this window only; no system setting changes). */
+    private fun keepScreenOn() = foreground.scenario.onActivity {
+        it.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     private fun usedHeapMb() = Runtime.getRuntime().let { (it.totalMemory() - it.freeMemory()) / 1e6 }

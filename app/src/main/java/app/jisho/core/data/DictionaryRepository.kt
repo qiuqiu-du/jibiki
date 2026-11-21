@@ -15,6 +15,9 @@ import app.jisho.core.lemmatizer.Segmenter
 import app.jisho.core.japanese.Romaji
 import app.jisho.core.japanese.SearchKey
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 
 data class SearchResult(
@@ -60,10 +63,20 @@ interface PackOpener {
 
 /** Body markup -> plain text without ruby readings (for hints); number badges become ［一］〔一〕(1). */
 internal fun plainText(markup: String): String =
-    markup.replace(Regex("<rt>.*?</rt>"), "")
-        .replace(Regex("<span class=\"(box-b|box-w|num-c)\">(.*?)</span>")) { badgeFallback(it.groupValues[1], it.groupValues[2]) }.replace(Regex("<br>|</p>"), " ").replace(Regex("<[^>]+>"), "")
+    markup.replace(RUBY_TEXT, "")
+        .replace(BADGE) { badgeFallback(it.groupValues[1], it.groupValues[2]) }.replace(LINE_END, " ").replace(ANY_TAG, "")
         .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&amp;", "&")
-        .replace(Regex("\\s+"), " ").trim()
+        .replace(SPACES, " ").trim()
+
+// Compiled once: plainText runs for every one-line meaning.
+private val RUBY_TEXT = Regex("<rt>.*?</rt>")
+private val BADGE = Regex("<span class=\"(box-b|box-w|num-c)\">(.*?)</span>")
+private val LINE_END = Regex("<br>|</p>")
+private val ANY_TAG = Regex("<[^>]+>")
+private val SPACES = Regex("\\s+")
+
+/** One-line meanings: rows per parallel task (a full list of 60 rows runs as 4 tasks). */
+private const val HINT_ROWS_PER_TASK = 15
 
 /** Inputs shorter than this aren't lemmatized: one kana is a prefix, not an inflected form. */
 private const val MIN_LEMMA_INPUT = 2
@@ -110,14 +123,18 @@ class DictionaryRepository(
         val text = if (Romaji.isRomaji(trimmed)) Romaji.toHiragana(trimmed) else trimmed
         val key = SearchKey.of(text)
         val kanaInput = key.isNotEmpty() && key.all { it in 'ぁ'..'ゟ' || it == 'ー' }
+        val ds = dicts // one snapshot: the settings may change while this runs
         val found = core!!.search(key, kanaInput)
         val (exact, prefix) = found.partition { it.exact }
-        val lemmas = lemmaRows(key).filter { l -> exact.none { it.entryId == l.entryId } }.filter { hasDefinition(it.entryId) }
+        val lemmaRows = lemmaRows(key).filter { l -> exact.none { it.entryId == l.entryId } }
+        // One query per dictionary answers both questions below (was one per row and dictionary).
+        val definedIds = if (lemmaRows.isEmpty()) emptySet() else defined(ds, lemmaRows.map { it.entryId } + exact.map { it.entryId })
+        val lemmas = lemmaRows.filter { it.entryId in definedIds }
         // JMdict lists some inflected expressions on their own (信じられない) that no dictionary
         // defines; when the input also has a defined dictionary form, that form goes first.
-        val (defined, undefined) = if (lemmas.isEmpty()) exact to emptyList() else exact.partition { hasDefinition(it.entryId) }
-        val words = withHints(distinguish(defined + lemmas + undefined + prefix.filter { p -> lemmas.none { it.entryId == p.entryId } }))
-        val dictOnly = if (words.size < 20) dicts.flatMap { it.searchOwnKeys(key, limit = 10) } else emptyList()
+        val (defined, undefined) = if (lemmas.isEmpty()) exact to emptyList() else exact.partition { it.entryId in definedIds }
+        val words = present(defined + lemmas + undefined + prefix.filter { p -> lemmas.none { it.entryId == p.entryId } }, ds)
+        val dictOnly = if (words.size < 20) ds.flatMap { it.searchOwnKeys(key, limit = 10) } else emptyList()
         // Word by word whenever the input is not one word or one inflected word: a sentence, a
         // word with a particle (食べますよ), or a word with an auxiliary verb (食べてくる).
         val segments = if (exact.isEmpty() && lemmas.isEmpty()) {
@@ -129,23 +146,53 @@ class DictionaryRepository(
     /** Where the user wants one-line meanings (read on every use, like the dictionary settings). */
     fun summaryPrefs(): SummaryPrefs = summaries()
 
-    /** Search rows get a Japanese / Chinese line on every row when the user chose so (else only via [distinguish]). */
-    private fun withHints(words: List<Candidate>): List<Candidate> {
+    /**
+     * The rows as shown: look-alike rows merged or told apart ([distinguish]), then one-line
+     * meanings where the user wants them ([withHints]). The dictionary links both need are read
+     * once, one query per dictionary, and only for the rows that need them.
+     */
+    private suspend fun present(words: List<Candidate>, ds: List<DictDb>): List<Candidate> {
         val p = summaries()
         val ja = SummaryPlace.Search in p.japanese
         val zh = SummaryPlace.Search in p.chinese
+        val groups = words.groupBy { it.displayKey }.filterValues { it.size > 1 }
+        val needed = if (ja || zh) words.map { it.entryId } else groups.values.flatten().map { it.entryId }
+        val links = linksOf(ds, needed)
+        return withHints(distinguish(words, groups, ds, links), ds, links, ja, zh)
+    }
+
+    /**
+     * Search rows get a Japanese / Chinese line on every row when the user chose so (else only via
+     * [distinguish]). Rows are independent and the work is mostly decompressing and scanning text,
+     * so they are split over a few cores; the order of the list is kept.
+     */
+    private suspend fun withHints(
+        words: List<Candidate>, ds: List<DictDb>, links: Map<Long, List<List<Long>>>, ja: Boolean, zh: Boolean,
+    ): List<Candidate> {
         if (!ja && !zh) return words
-        val ds = dicts
-        return words.map { c ->
-            val links = ds.map { it.linkedIds(c.entryId) }
-            c.copy(
-                hint = c.hint.ifEmpty { if (ja) hintFor(ds, links, chinese = false) else "" },
-                zhHint = c.zhHint.ifEmpty { if (zh) hintFor(ds, links, chinese = true) else "" },
+        fun hinted(c: Candidate): Candidate {
+            val l = links.getValue(c.entryId)
+            return c.copy(
+                hint = c.hint.ifEmpty { if (ja) hintFor(ds, l, chinese = false) else "" },
+                zhHint = c.zhHint.ifEmpty { if (zh) hintFor(ds, l, chinese = true) else "" },
             )
+        }
+        if (words.size <= HINT_ROWS_PER_TASK) return words.map(::hinted)
+        return coroutineScope {
+            words.chunked(HINT_ROWS_PER_TASK).map { part -> async(Dispatchers.Default) { part.map(::hinted) } }.awaitAll().flatten()
         }
     }
 
-    private fun hasDefinition(coreId: Long) = dicts.any { it.linkedIds(coreId).isNotEmpty() }
+    /** Each word's linked entry ids, one list per dictionary of [ds] (same order): one query per dictionary. */
+    private fun linksOf(ds: List<DictDb>, ids: List<Long>): Map<Long, List<List<Long>>> {
+        if (ids.isEmpty()) return emptyMap()
+        val perDict = ds.map { it.linkedIds(ids) }
+        return ids.associateWith { id -> perDict.map { it[id].orEmpty() } }
+    }
+
+    /** Which of [ids] some dictionary of [ds] defines: one query per dictionary. */
+    private fun defined(ds: List<DictDb>, ids: List<Long>): Set<Long> =
+        if (ids.isEmpty()) emptySet() else ds.flatMapTo(HashSet()) { it.defines(ids) }
 
     /** Dictionary forms of an inflected input (食べなかった -> 食べる), checked against JMdict. */
     private fun lemmaRows(key: String): List<Candidate> {
@@ -162,15 +209,14 @@ class DictionaryRepository(
      * several entries that look the same (腰/こし twice), rows that lead to exactly the
      * same dictionary definitions are merged; the others get a short definition hint.
      */
-    private fun distinguish(words: List<Candidate>): List<Candidate> {
-        val groups = words.groupBy { it.displayKey }.filterValues { it.size > 1 }
+    private fun distinguish(
+        words: List<Candidate>, groups: Map<*, List<Candidate>>, ds: List<DictDb>, links: Map<Long, List<List<Long>>>,
+    ): List<Candidate> {
         if (groups.isEmpty()) return words
-        val ds = dicts // one snapshot: the settings may change while this runs
         val dropped = HashSet<Long>()
         val hints = HashMap<Long, String>()
         val zhHints = HashMap<Long, String>()
         for (group in groups.values) {
-            val links = group.associate { c -> c.entryId to ds.map { it.linkedIds(c.entryId) } }
             val kept = group.distinctBy { links[it.entryId] }
             group.filter { it !in kept }.forEach { dropped += it.entryId }
             if (kept.size > 1) {
@@ -206,7 +252,7 @@ class DictionaryRepository(
     /** Every linked definition's hint text, best first (dictionary order, then entry order). */
     private fun hintOptions(ds: List<DictDb>, linksPerDict: List<List<Long>>, chinese: Boolean): Sequence<String> =
         ds.asSequence().zip(linksPerDict.asSequence()).filter { (d, _) -> d.chinese == chinese }
-            .flatMap { (d, ids) -> ids.asSequence().mapNotNull { d.entry(it)?.body } }
+            .flatMap { (d, ids) -> ids.asSequence().mapNotNull { d.body(it) } }
             // Whole lines: the row shows "…" where the screen runs out (a fixed cut looked broken off).
             .map { body -> if (chinese) glossLine(body) else firstSentence(body) }
             .filter { it.isNotEmpty() }
@@ -214,12 +260,14 @@ class DictionaryRepository(
     suspend fun entry(coreId: Long): EntryDetail? = withContext(Dispatchers.IO) {
         ensureOpen()
         val entry = core!!.entry(coreId) ?: return@withContext null
-        val definitions = dicts.map { DictInfo(it.dictId, it.title) to it.entriesForCore(coreId) }
+        val ds = dicts
+        val definitions = ds.map { DictInfo(it.dictId, it.title) to it.entriesForCore(coreId) }
         // An undefined word may be an inflected form (信じられない -> 信じる): point to it.
         val baseForms = if (definitions.any { it.second.isNotEmpty() }) emptyList() else
             entry.forms.map { SearchKey.of(it.kanji ?: it.reading) }.distinct()
                 .flatMap { lemmaRows(it) }.distinctBy { it.entryId }
-                .filter { it.entryId != coreId && hasDefinition(it.entryId) }
+                .filter { it.entryId != coreId }
+                .let { rows -> defined(ds, rows.map { it.entryId }).let { d -> rows.filter { it.entryId in d } } }
         EntryDetail(entry, definitions, baseForms)
     }
 
@@ -243,7 +291,7 @@ class DictionaryRepository(
         when (parts[0]) {
             "core" -> parts.getOrNull(1)?.toLongOrNull()?.let { id ->
                 val entry = core!!.entry(id) ?: return@let null
-                val body = { d: DictDb -> d.linkedIds(id).firstOrNull()?.let { d.entry(it)?.body } }
+                val body = { d: DictDb -> d.linkedIds(id).firstOrNull()?.let { d.body(it) } }
                 WordSummary(
                     entry.accents[reading] ?: entry.accents[entry.reading],
                     if (ja) first(chinese = false, body) else "",
@@ -253,7 +301,7 @@ class DictionaryRepository(
             // A dictionary-only item: its own dictionary is the only source (none if turned off).
             "dict" -> parts.getOrNull(2)?.toLongOrNull()?.let { id ->
                 val d = ds.firstOrNull { it.dictId == parts[1] } ?: return@let null
-                val text = d.entry(id)?.body?.let { line(d, it) }.orEmpty()
+                val text = d.body(id)?.let { line(d, it) }.orEmpty()
                 WordSummary(null, if (ja && !d.chinese) text else "", if (zh && d.chinese) text else "")
             }
             else -> null
