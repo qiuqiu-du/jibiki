@@ -1,5 +1,6 @@
 package app.jisho
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,6 +36,7 @@ import app.jisho.navigation.AppNavHost
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        preferHighestRefreshRate()
         val packs = (application as JishoApp).dataPacks
         // After an install, an update or a pack change core.db is rebuilt first (about a second).
         val coreCurrent = packs.isCoreCurrent()
@@ -73,6 +75,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Asks for the screen's fastest mode at its current resolution. Some systems (vivo) run apps
+     * they don't know at 60 Hz otherwise, even while scrolling; the user's own refresh-rate
+     * setting still caps it (Android ranks it above an app's request).
+     */
+    private fun preferHighestRefreshRate() {
+        val display = if (Build.VERSION.SDK_INT >= 30) display else @Suppress("DEPRECATION") windowManager.defaultDisplay
+        val current = display?.mode ?: return
+        val best = display.supportedModes
+            .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }
+            .maxByOrNull { it.refreshRate } ?: return
+        window.attributes = window.attributes.apply { preferredDisplayModeId = best.modeId }
     }
 
     private companion object {
