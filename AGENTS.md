@@ -7,7 +7,7 @@
 一款**只给自己用**的 Android 日语词典 App（占位名称「辞書」）：
 - 离线优先，日日释义为主；
 - 只保留**查词**和**收藏**两大功能；
-- 查询方向只做**日→日**（第一版）和**日→中**（后续版本），不做中→日反查，也不做日→英。
+- 查询方向只做**日→日**（第一版）和**日→中**（M5），不做中→日反查，也不做日→英。
 
 ## 必读文档（按优先级）
 
@@ -25,21 +25,22 @@ dict/
 ├── AGENTS.md / Architecture.md
 ├── docs/
 │   ├── design-spec.md   设计明细文档（唯一维护版本）
+│   ├── dictionaries.md  每部辞书的支持情况、体积估算和加入顺序
 │   └── moji-import.md   从 MOJi辞書 导出收藏的方法和接口记录
 ├── dictionaries/    原始辞书 .mdx/.mdd、Yomitan .zip、NHK .json（约 3 GB，只读，不提交、不外传）
 │   ├── daijisen/        デジタル大辞泉（主辞典）
 │   ├── meikyo3/         明鏡国語辞典 第三版（辅助辞典）
 │   ├── nhk-accent-2016/ NHK アクセント新辞典（音调来源）
 │   ├── shinmeikai8/     新明解国語辞典 第八版（第二辅助辞典，可停用）
-│   ├── daijirin4/       大辞林 第四版（后续版本）
+│   ├── daijirin4/       大辞林 第四版（M5 ①，第二主辞典）
 │   ├── shinmeikai7/     新明解国語辞典 第七版（旧版对照）
 │   ├── nhk-accent/      NHK アクセント辞典（1998年旧版对照）
 │   ├── daijirin3/       大辞林 第三版（旧版对照）
-│   ├── shogakukan-jc/   小学館日中辞典 tyuka 版 / V2 版（旧版对照）
-│   ├── shogakukan-jc3/  小学館日中辞典 第三版（后续版本）
-│   ├── shinseiki-jc/    外研社 新世纪日汉双解大辞典（后续版本）
-│   ├── gendai-jc/       现代日汉双解词典 修订版（后续版本）
-│   └── kodansha-jc/     讲谈社 日本語大辞典 / 日汉大辞典 双解版（后续版本）
+│   ├── shogakukan-jc/   小学館日中辞典 tyuka 版 / V2 版（不用，被第三版取代）
+│   ├── shogakukan-jc3/  小学館日中辞典 第三版（M5 ②，日中主辞典）
+│   ├── shinseiki-jc/    外研社 新世纪日汉双解大辞典（M5 ③，可停用）
+│   ├── gendai-jc/       现代日汉双解词典 修订版（暂不做）
+│   └── kodansha-jc/     讲谈社 日本語大辞典 / 日汉大辞典 双解版（暂不做）
 ├── sources/         自动下载的开放数据：JMdict_e.gz、Kanjium accents.txt（不提交）
 ├── tools/           电脑端 Python 脚本：.mdx / .zip / .json → SQLite 数据包
 ├── datapacks/       生成的数据包（不提交，用 adb push 到手机）
@@ -56,17 +57,18 @@ dict/
 | M2 查得准 | Kuromoji 和规则表两种还原器、JMdict 校验、手写、测试集 | ✅ 2026-11-20 用户验收通过（测试集 565 条两种模式全过、候选 p95 9–14.5 ms、冷启动约 510 ms、release APK 25.9 MB） |
 | M3 释义完善 | 辞书管理、释义排版和外字、网页页签 | ✅ 2026-11-20 用户验收通过（外字无占位、编号由 App 绘制、词条 p95 1.8 ms、release APK 26.0 MB） |
 | M4 收藏完善 | 收藏夹、导出导入、备份恢复、历史 | ✅ 2026-11-21 用户验收通过（release APK 25.0 MB；备份往返、Anki 导入已实测；MOJi 收藏 2914 词已导入；收藏夹拖动排序、左滑删除可撤销） |
+| M5 辞书扩充 | 依次加入大辞林第四版、小学館日中辞典第三版、新世纪日汉双解（顺序见 [docs/dictionaries.md](docs/dictionaries.md)） | ⏳ 未开始 |
 
 完成一个阶段后，更新这张表和设计文档里的里程碑表格（记录 APK 大小、数据包大小、冷启动时间）。
 
 ## 已定的关键决策（不要擅自更改）
 
-- **辞书**：デジタル大辞泉（主）、明鏡国語辞典 第三版（辅）、新明解国語辞典 第八版（第二辅助，可停用）、NHK アクセント新辞典 2016（音调）。大辞林第四版、小学館日中辞典放到后续版本。旧版（新明解7、大辞林3、NHK 1998）只留作对照。
+- **辞书**：デジタル大辞泉（主）、明鏡国語辞典 第三版（辅）、新明解国語辞典 第八版（第二辅助，可停用）、NHK アクセント新辞典 2016（音调）。M5 按顺序加入大辞林第四版（第二主辞典）、小学館日中辞典第三版（日中主辞典）、新世纪日汉双解大辞典（可停用）；讲谈社、现代日汉暂不做，小学館旧版（tyuka、V2）不用（2026-11-21）。旧版（新明解7、大辞林3、NHK 1998）只留作对照。
 - **音调来源顺序**：NHK 2016 → 新明解第八版自带的音调数字 → Kanjium。不再解析 NHK 1998 年版的图片编码。
 - **转换脚本输入格式**：MDict、Yomitan、NHK JSON；手机端只认生成的 `.db`。
 - **只用文字**：不使用 .mdd 多媒体包里的插图和音频；只从中取出外字小图片（三部辞书合计约 140 种、90 KB）。
 - **词库不打包进 APK**：首次启动时从手机存储导入数据包。
-- **体积**：APK ≤ 30 MB，数据包合计 ≤ 110 MB（M0 实测 100.1 MB）。
+- **体积**：APK ≤ 30 MB，数据包合计 ≤ 200 MB（2026-11-21 从 110 MB 放宽；现在 100.4 MB，M5 后预计约 175 MB）。
 - **分词器**：Kuromoji + IPADIC（默认）和活用规则表（可在设置中切换）都实现 `Lemmatizer` 接口；Sudachi 后期按需加入。所有候选都必须经过 JMdict 校验。
 - **明确不做**：拍照识别、其他应用划词查询、发音朗读、背词复习、笔记、账号、评论或社区、AI 问答、广告、统计 SDK。
 
@@ -102,6 +104,7 @@ tools/.venv/bin/python tools/build_dict.py daijisen        # → dict_daijisen.d
 tools/.venv/bin/python tools/build_dict.py meikyo3
 tools/.venv/bin/python tools/build_dict.py shinmeikai8
 tools/.venv/bin/python tools/tests/check_packs.py          # 音调、对齐、标签、链接抽查；失败时退出码为 1
+tools/.venv/bin/python tools/measure_sources.py daijirin4  # 加新辞书前估算体积和常用词覆盖（不写文件）
 ```
 
 设备与构建：
