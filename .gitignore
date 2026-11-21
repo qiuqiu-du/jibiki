@@ -14,6 +14,12 @@ build/
 local.properties
 *.apk
 *.aab
+dist/
+
+# Release signing key and its passwords (docs/release.md): never commit
+keystore.properties
+*.jks
+*.keystore
 
 # macOS
 .DS_Store

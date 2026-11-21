@@ -26,7 +26,8 @@ dict/
 ├── docs/
 │   ├── design-spec.md   设计明细文档（唯一维护版本）
 │   ├── dictionaries.md  每部辞书的支持情况、体积估算和加入顺序
-│   └── moji-import.md   从 MOJi辞書 导出收藏的方法和接口记录
+│   ├── moji-import.md   从 MOJi辞書 导出收藏的方法和接口记录
+│   └── release.md       打包、签名、分发（scripts/deploy.sh）
 ├── dictionaries/    原始辞书 .mdx/.mdd、Yomitan .zip、NHK .json（约 3 GB，只读，不提交、不外传）
 │   ├── daijisen/        デジタル大辞泉（主辞典）
 │   ├── meikyo3/         明鏡国語辞典 第三版（辅助辞典）
@@ -119,6 +120,7 @@ adb devices -l                                   # 确认手机已连接
 scrcpy --stay-awake --max-size 1400              # 在 Mac 上实时查看手机画面
 adb exec-out screencap -p > /tmp/screen.png      # 截图，用来验证界面
 adb push datapacks/ /sdcard/Download/jisho/      # 推送数据包到手机（之后在 App 里选文件夹导入）
+scripts/deploy.sh                                # 一条龙：数据包 → 检查 → 测试 → release APK（dist/）；install、push 送到手机，见 docs/release.md
 scripts/push-datapacks.sh                        # debug 版：直接把数据包放进 App 私有目录，免去手动导入
 scripts/test-jvm.sh                              # 只用电脑：数据包检查 + JVM 测试（不需要手机）
 scripts/test-device.sh                           # 需要手机：真机测试 + 打印手机上测到的性能数值
@@ -126,7 +128,7 @@ scripts/test-device.sh                           # 需要手机：真机测试 +
 ./gradlew :app:connectedDebugAndroidTest         # 真机测试：Android 运行时兼容性 + 性能（需要数据包已在 App 里）
 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.jisho.DeviceUiTest
                                                  # 只跑界面测试（约 1 分钟）
-./gradlew :app:assembleRelease                   # release 包（约 3 MB，用 debug 签名，只给自己装）
+./gradlew :app:assembleRelease                   # release 包（约 25 MB）；有 keystore.properties 用发布钥匙签名，否则用本机调试钥匙（docs/release.md）
 adb shell am start -S -n app.jisho/.MainActivity --es q 食べる   # debug 版：启动并预填搜索词
 adb shell am start -S -n app.jisho/.MainActivity --es tab settings   # debug 版：直接打开设置页（搜索框的键盘会挡住底栏）；favorites 打开收藏页（三个主页面在同一个可左右滑动的 Home 里）
 adb shell am start -S -n app.jisho/.MainActivity --es tab badges     # debug 版：编号样张（方框一～二十、圆圈 1～99，浅色和深色）

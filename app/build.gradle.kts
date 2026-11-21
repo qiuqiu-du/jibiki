@@ -1,8 +1,33 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
+
+// Release signing (docs/release.md): keystore.properties at the repository root (never
+// committed) or, in CI, the JISHO_* environment variables. Without either, release builds
+// fall back to this computer's debug key; -PrequireReleaseSigning=true makes that an error.
+val signing: Map<String, String?> = run {
+    val file = rootProject.file("keystore.properties")
+    val props = Properties().apply { if (file.exists()) file.inputStream().use { load(it) } }
+    fun value(key: String, env: String) = props.getProperty(key) ?: providers.environmentVariable(env).orNull
+    mapOf(
+        "storeFile" to value("storeFile", "JISHO_KEYSTORE"),
+        "storePassword" to value("storePassword", "JISHO_KEYSTORE_PASSWORD"),
+        "keyAlias" to value("keyAlias", "JISHO_KEY_ALIAS"),
+        "keyPassword" to value("keyPassword", "JISHO_KEY_PASSWORD"),
+    )
+}
+val hasReleaseKey = signing.values.all { !it.isNullOrBlank() }
+if (!hasReleaseKey && providers.gradleProperty("requireReleaseSigning").orNull == "true") {
+    throw GradleException("Release signing required but keystore.properties / JISHO_* variables are missing")
+}
+
+// versionCode must grow for an update to install over the old APK: the commit count does.
+val commitCount: Int = providers.exec { commandLine("git", "rev-list", "--count", "HEAD"); isIgnoreExitValue = true }
+    .standardOutput.asText.map { it.trim().toIntOrNull() ?: 1 }.getOrElse(1)
 
 android {
     namespace = "app.jisho"
@@ -12,10 +37,19 @@ android {
         applicationId = "app.jisho"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: commitCount
+        versionName = providers.gradleProperty("versionName").orNull ?: "0.1.$commitCount"
         ndk { abiFilters += "arm64-v8a" } // only the test phone's ABI, keeps the APK small
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (hasReleaseKey) create("release") {
+            storeFile = rootProject.file(signing.getValue("storeFile")!!)
+            storePassword = signing["storePassword"]
+            keyAlias = signing["keyAlias"]
+            keyPassword = signing["keyPassword"]
+        }
     }
 
     buildTypes {
@@ -23,7 +57,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug") // personal use only, never distributed
+            signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
         }
     }
     compileOptions {

@@ -9,6 +9,8 @@
 
 设计见 [docs/design-spec.md](docs/design-spec.md)，架构和编码规范见 [Architecture.md](Architecture.md)，构建和测试命令见 [AGENTS.md](AGENTS.md)。
 
+打包和安装：`scripts/deploy.sh`（数据包 → 测试 → APK → 手机），签名和分发见 [docs/release.md](docs/release.md)。
+
 ## 声明 / Disclaimer
 
 - **本仓库不包含任何辞书数据。** 辞书原文件（`dictionaries/`）、下载的开放数据（`sources/`）和生成的数据包（`datapacks/`）都不在仓库里，也不会提供。
