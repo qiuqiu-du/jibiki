@@ -87,7 +87,12 @@ class SearchViewModel(
     refresh: Flow<Any> = flowOf(Unit),
     /** Lookup history, shown while the field is empty; null in tests. */
     private val user: UserStore? = null,
+    /** Setting: raise the keyboard on launch and on returning from an entry page. */
+    autoKeyboardSetting: Flow<Boolean> = flowOf(true),
 ) : ViewModel() {
+    /** null until the setting is read (the first resume may come before it). */
+    val autoKeyboard: StateFlow<Boolean?> = autoKeyboardSetting.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     val history: StateFlow<List<HistoryItem>> = (user?.version ?: flowOf(0L))
         .mapLatest { user?.history(HISTORY_SHOWN).orEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -145,8 +150,11 @@ fun SearchScreen(
         if (query != field.text) field = TextFieldValue(query, TextRange(query.length)) // clear, handwriting
     }
     // RESUMED only once a page transition (or a back gesture) has fully finished.
-    LifecycleResumeEffect(active) {
-        if (active && viewModel.consumeFocusRequest()) {
+    val autoKeyboard by viewModel.autoKeyboard.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(active, autoKeyboard) {
+        val auto = autoKeyboard
+        // Consumed even when the setting is off, so turning it on later doesn't raise it at once.
+        if (active && auto != null && viewModel.consumeFocusRequest() && auto) {
             focus.requestFocus()
             keyboard?.show()
         }

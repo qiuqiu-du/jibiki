@@ -21,6 +21,50 @@ import app.jisho.core.designsystem.ReorderState
 import app.jisho.core.designsystem.longPressDrag
 import app.jisho.core.designsystem.rememberReorderState
 import app.jisho.core.designsystem.reorderable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.test.platform.app.InstrumentationRegistry
+import app.jisho.core.data.EntryExpand
+import app.jisho.core.data.SettingsRepository
+import app.jisho.core.data.ThemeMode
+import app.jisho.core.designsystem.JishoTheme
+import app.jisho.core.userdata.BackupManager
+import app.jisho.feature.entry.EntryScreen
+import app.jisho.feature.entry.EntryTarget
+import app.jisho.feature.entry.EntryViewModel
+import app.jisho.feature.search.HandwritingRecognizer
+import app.jisho.feature.search.HandwritingViewModel
+import app.jisho.feature.search.InkModelMemory
+import app.jisho.feature.search.SearchScreen
+import app.jisho.feature.search.SearchViewModel
+import app.jisho.feature.settings.AppInfo
+import app.jisho.feature.settings.BackupViewModel
+import app.jisho.feature.settings.PackInfo
+import app.jisho.feature.settings.SettingsScreen
+import app.jisho.feature.settings.SettingsViewModel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -108,4 +152,114 @@ class DeviceUiTest {
         assertEquals(0, list.firstVisibleItemIndex)
         assertEquals(row, order.first())
     }
+
+    // --- Settings (design-spec 5): choices are stored, labels fit, and the app follows them. ---
+    // Settings go to a scratch DataStore; packs are only read; no backup or model is touched.
+
+    private val app get() = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as JishoApp
+    private var stores = 0
+
+    private fun scratchSettings(): SettingsRepository {
+        val file = File(app.cacheDir, "ui-test-${System.nanoTime()}-${stores++}.preferences_pb").also { it.delete() }
+        return SettingsRepository(app, PreferenceDataStoreFactory.create(produceFile = { file }))
+    }
+
+    private fun handwriting() = HandwritingViewModel(HandwritingRecognizer(), object : InkModelMemory {
+        override suspend fun wasReady() = false
+        override suspend fun remember(ready: Boolean) {}
+    })
+
+    /** The settings page as the app shows it, on [settings]; the model counts as downloaded. */
+    private fun showSettings(settings: SettingsRepository) {
+        val info = AppInfo("test", listOf(PackInfo(null, "2026-11-21", 32_000_000), PackInfo("デジタル大辞泉", "2026-11-21", 46_000_000)), 25_000_000, 500_000)
+        val viewModel = SettingsViewModel(settings, app.repository) { info }
+        val backup = BackupViewModel(BackupManager(app, app.userStore, settings))
+        rule.setContent { JishoTheme { SettingsScreen(viewModel, backup, handwriting(), active = true) {} } }
+        rule.waitForIdle()
+    }
+
+    @Test fun settingsChoicesAreStored() = runBlocking {
+        val settings = scratchSettings()
+        showSettings(settings)
+        rule.onNodeWithText(text(R.string.settings_entry_expand_none)).performScrollTo().performClick()
+        rule.onNodeWithText(text(R.string.settings_theme_dark)).performScrollTo().performClick()
+        rule.onNodeWithText(text(R.string.settings_auto_keyboard)).performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(EntryExpand.None, settings.entryExpand.first())
+        assertEquals(ThemeMode.Dark, settings.theme.first())
+        assertEquals(false, settings.autoKeyboard.first())
+    }
+
+    /** Every button's label is on one line and not cut off (no "…", no wrapping). */
+    @Test fun settingsButtonsShowTheirWholeLabel() {
+        showSettings(scratchSettings())
+        val labels = rule.onAllNodes(
+            hasAnyAncestor(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)) and
+                SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult),
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes()
+        assertTrue("no buttons found", labels.size >= 4) // reimport, backup, restore, delete
+        for (node in labels) {
+            val layouts = mutableListOf<TextLayoutResult>()
+            node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts)
+            val layout = layouts.single()
+            val label = layout.layoutInput.text.text
+            assertEquals("$label wraps", 1, layout.lineCount)
+            // Compared directly: hasVisualOverflow also fires when the width is rounded down by
+            // less than a pixel (290 px laid out for a 288.8 px line).
+            assertFalse("$label is cut off", layout.isLineEllipsized(0) || layout.getLineRight(0) > layout.size.width + 1)
+            // A trailing "…" reads as cut-off text on a short button, so labels never end with one.
+            assertFalse("$label ends with …", label.endsWith("…") || label.endsWith("..."))
+        }
+    }
+
+    /** Entry page: the default-expand setting decides which dictionaries show their entries. */
+    @Test fun entryPageExpandsDictionariesAsSet() = runBlocking {
+        assumeTrue("import the data packs in the app first", app.dataPacks.isReady())
+        val id = app.repository.search("光").words.first { it.exact }.entryId
+        val sections = app.repository.entry(id)!!.definitions.filter { it.second.isNotEmpty() }
+        assumeTrue("needs a word in several dictionaries", sections.size >= 2)
+        val titles = sections.flatMap { s -> s.second.map { it.title } }.distinct()
+        fun shownEntries() = titles.sumOf { rule.onAllNodesWithText(it, useUnmergedTree = true).fetchSemanticsNodes().size }
+        val expected = mapOf(
+            EntryExpand.First to sections.first().second.size,
+            EntryExpand.All to sections.sumOf { it.second.size },
+            EntryExpand.None to 0,
+        )
+        var expand by mutableStateOf(EntryExpand.First)
+        rule.setContent {
+            JishoTheme {
+                key(expand) {
+                    EntryScreen(EntryViewModel(app.repository, EntryTarget.Core(id), user = null, expandSetting = flowOf(expand)), {}, { _, _ -> }, {}, {})
+                }
+            }
+        }
+        for ((setting, count) in expected) {
+            expand = setting
+            rule.waitUntil(5_000) { shownEntries() == count }
+            assertEquals(setting.name, count, shownEntries())
+        }
+    }
+
+    /** Search page: the search field takes focus (and the keyboard) on launch only when the setting is on. */
+    @Test fun searchFieldFocusFollowsTheKeyboardSetting() {
+        var auto by mutableStateOf(true)
+        rule.setContent {
+            JishoTheme {
+                key(auto) {
+                    SearchScreen(
+                        SearchViewModel(app.repository, debounceMs = 0, autoKeyboardSetting = flowOf(auto)),
+                        handwriting(), onOpenEntry = {}, onOpenDictEntry = { _, _ -> }, onLookup = {},
+                    )
+                }
+            }
+        }
+        rule.waitUntil(5_000) { runCatching { rule.onNode(hasSetTextAction()).assertIsFocused() }.isSuccess }
+        auto = false
+        rule.waitForIdle()
+        Thread.sleep(500) // the setting is read asynchronously; give a wrong focus time to happen
+        rule.onNode(hasSetTextAction()).assertIsNotFocused()
+    }
+
+    private fun text(res: Int) = app.getString(res)
 }

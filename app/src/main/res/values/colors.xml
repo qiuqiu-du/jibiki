@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="launcher_background">#3949AB</color>
+    <!-- Must match background in core/designsystem/Theme.kt (Light). -->
+    <color name="app_background">#FFFBF8FF</color>
 </resources>

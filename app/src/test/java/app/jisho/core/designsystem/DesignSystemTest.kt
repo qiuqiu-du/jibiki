@@ -11,8 +11,7 @@ import org.junit.Test
 /** Tests for core/designsystem: pitch formatting and the body markup renderer. */
 class DesignSystemTest {
     private val colors = BodyColors(Color.Blue, Color.Gray, Color.DarkGray, Color.Blue)
-    private fun render(markup: String, style: LabelStyle = DefaultLabelStyle, onLink: (String) -> Unit = {}) =
-        renderBody(markup, colors, style, onLink)
+    private fun render(markup: String, onLink: (String) -> Unit = {}) = renderBody(markup, colors, onLink)
 
     // --- Pitch ---
 
@@ -76,16 +75,14 @@ class DesignSystemTest {
 
     @Test fun labelsNeverShrinkOrBoldText() {
         // A smaller or synthetic-bold CJK glyph looks like a different character next to body text.
-        for (style in LabelStyle.entries - LabelStyle.SmallBold) {
-            val s = render("<span class=\"label\">光と影／光</span>明かり", style)
-            assertTrue(style.name, s.spanStyles.all { it.item.fontSize == androidx.compose.ui.unit.TextUnit.Unspecified })
-            assertTrue(style.name, s.spanStyles.all { it.item.fontWeight == null })
-        }
+        val s = render("<span class=\"label\">光と影／光</span>明かり")
+        assertTrue(s.spanStyles.all { it.item.fontSize == androidx.compose.ui.unit.TextUnit.Unspecified })
+        assertTrue(s.spanStyles.all { it.item.fontWeight == null })
     }
 
     @Test fun bracketLabelsAreWrapped() {
         assertEquals("〔類語〕〔光と影／光〕明かり",
-            render("<span class=\"label\">類語</span><span class=\"label\">光と影／光</span>明かり", LabelStyle.Bracket).text)
+            render("<span class=\"label\">類語</span><span class=\"label\">光と影／光</span>明かり").text)
     }
 
     @Test fun malformedMarkupDoesNotCrash() {

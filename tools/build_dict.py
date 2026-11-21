@@ -163,7 +163,9 @@ def main(dict_id):
         "kind": "dictionary",
         "lang": adapter.lang,
         "dict_id": dict_id,
-        "title": adapter.title,
+        # Source titles mix ideographic and ASCII spaces (新明解国語辞典\u3000第八版); the app
+        # lists titles side by side, so every run of whitespace becomes one ASCII space.
+        "title": " ".join(adapter.title.split()),
         "revision": adapter.revision,
         "entry_count": len(entries),
     })

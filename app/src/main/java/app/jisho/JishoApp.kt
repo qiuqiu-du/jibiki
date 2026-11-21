@@ -1,6 +1,9 @@
 package app.jisho
 
 import android.app.Application
+import android.app.UiModeManager
+import android.os.Build
+import app.jisho.core.data.ThemeMode
 import app.jisho.core.data.DictPrefs
 import app.jisho.core.data.SummaryPrefs
 import app.jisho.core.data.DictionaryRepository
@@ -70,6 +73,21 @@ class JishoApp : Application() {
         // and mode A uses the rule table alone until it is ready.
         appScope.launch {
             settings.dictPrefs.collect { dictPrefs = it; _resultsVersion.update { v -> v + 1 } }
+        }
+        // Android 12+ keeps a per-app light/dark choice and applies it before the first frame
+        // (no flash, and web pages and system bars follow it); older versions only get the
+        // Compose colors (MainActivity).
+        if (Build.VERSION.SDK_INT >= 31) appScope.launch {
+            val uiMode = getSystemService(UiModeManager::class.java)
+            settings.theme.collect { t ->
+                uiMode.setApplicationNightMode(
+                    when (t) {
+                        ThemeMode.System -> UiModeManager.MODE_NIGHT_AUTO
+                        ThemeMode.Light -> UiModeManager.MODE_NIGHT_NO
+                        ThemeMode.Dark -> UiModeManager.MODE_NIGHT_YES
+                    },
+                )
+            }
         }
         appScope.launch {
             settings.summaryPrefs.collect { summaryPrefs = it; _resultsVersion.update { v -> v + 1 } }

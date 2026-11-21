@@ -186,7 +186,7 @@ sealed interface AppResult<out T> {
 - 所有日文文本都要加上 `localeList = LocaleList("ja")`。否则系统会使用 HONOR Sans 的**中文字形**（直、骨、角等字的写法与日文不同）；加上之后，会改用系统自带的 Noto Sans CJK JP。
 - 释义段落使用日文按词组断行（Compose `LineBreak` 配合 `WordBreak.Phrase`），避免在词语中间换行。
 - 词头字号要明显大于正文；音调数字（⓪①②）放在读音后面，用次要颜色显示。
-- 字号跟随系统字体大小设置（使用 `sp`），并保证设置里的「字号」能整体放大缩小。
+- 字号跟随系统字体大小设置（使用 `sp`）；App 内不另设字号选项（2026-11-21 精简设置时决定）。
 
 ### 6.4 交互与动效
 - 全面屏沉浸显示（edge-to-edge），支持预测性返回手势。
@@ -247,6 +247,7 @@ sealed interface AppResult<out T> {
 | `core/lemmatizer/LemmatizerTest` | 形态还原测试集 `lemma_cases.tsv`（565 条），A、B 两种模式都必须全部通过，并打印各类别准确率和第一名命中率；规则表格式、词性校验、敬语前缀、整句分词、每行候选都有活用说明 |
 | `androidTest/DeviceRuntimeTest` | 在 Android 运行时上重跑查询键一致性向量、罗马音、正文渲染（抓 ICU 正则等平台差异），以及整个形态还原测试集（Kuromoji 从 APK 里读词典） |
 | `androidTest/DevicePerformanceTest` | 真机上候选 p95 ≤ 50 ms（含活用形和整句）、词条 p95 ≤ 150 ms；记录 Kuromoji 加载时间和内存 |
+| `androidTest/DeviceUiTest` | 所有 Compose 界面测试，一个文件、每类功能一节，用真实触摸事件、按状态判断：收藏夹拖动排序；设置页（选项写入设置、按钮文字完整不折行不带省略号、词条页按「默认展开」展开辞书、查词页按「自动弹出」决定是否聚焦）。设置写进临时 DataStore（`SettingsRepository` 可传入存储），不碰用户的设置和收藏 |
 
 **规则：**
 - 测试共用 `testing/TestPacks.kt`（打开数据包、读测试资源），不要在各文件里重复写。

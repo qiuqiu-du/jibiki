@@ -17,17 +17,7 @@ data class BodyColors(
     val muted: Color,
     val example: Color,
     val link: Color,
-    val labelBackground: Color = Color.Unspecified,
 )
-
-/** How dictionary labels (類語, 使い方, thesaurus categories) are drawn. Body text size is never reduced. */
-enum class LabelStyle { SmallBold, Accent, Tinted, Bracket }
-
-/**
- * Chosen by comparing all styles on the phone (2026-11-20): Bracket keeps body size and weight,
- * stays distinct from blue links (Accent did not), and is lighter than Tinted.
- */
-val DefaultLabelStyle = LabelStyle.Bracket
 
 /** Inline content ids of gaiji pictures start with this, followed by the picture's name. */
 const val GAIJI_PREFIX = "gaiji:"
@@ -39,7 +29,6 @@ const val GAIJI_PREFIX = "gaiji:"
 fun renderBody(
     markup: String,
     colors: BodyColors,
-    labelStyle: LabelStyle = DefaultLabelStyle,
     onLink: (String) -> Unit,
 ): AnnotatedString =
     buildAnnotatedString {
@@ -106,17 +95,13 @@ fun renderBody(
                     badge = attrs["class"]!! to StringBuilder()
                     open.addLast("badge" to false)
                 } else if (attrs["class"] == "label") {
-                    // Labels keep the body's size and weight: a smaller or synthetic-bold CJK glyph
-                    // looks like a different character next to normal text.
-                    val (style, open1, close1) = when (labelStyle) {
-                        LabelStyle.SmallBold -> Triple(SpanStyle(color = colors.accent, fontWeight = FontWeight.SemiBold, fontSize = 0.9.em), "", "")
-                        LabelStyle.Accent -> Triple(SpanStyle(color = colors.accent), "", "　")
-                        LabelStyle.Tinted -> Triple(SpanStyle(color = colors.accent, background = colors.labelBackground), "\u2009", "\u2009")
-                        LabelStyle.Bracket -> Triple(SpanStyle(color = colors.muted), "〔", "〕")
-                    }
-                    pushStyle(style)
-                    put(open1)
-                    closingText.addLast(close1)
+                    // Labels (類語, 使い方, thesaurus categories): muted and in 〔〕, keeping the body's
+                    // size and weight, since a smaller or synthetic-bold CJK glyph looks like a different
+                    // character. Chosen on the phone (2026-11-20) over accent-colored, tinted and small
+                    // bold labels: accent was confused with links, tinted was too heavy.
+                    pushStyle(SpanStyle(color = colors.muted))
+                    put("〔")
+                    closingText.addLast("〕")
                     open.addLast("label" to true)
                 } else {
                     val style = when (attrs["class"]) {

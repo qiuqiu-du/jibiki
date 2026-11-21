@@ -129,8 +129,8 @@ scripts/test-device.sh                           # 需要手机：真机测试 +
 adb shell am start -S -n app.jisho/.MainActivity --es q 食べる   # debug 版：启动并预填搜索词
 adb shell am start -S -n app.jisho/.MainActivity --es tab settings   # debug 版：直接打开设置页（搜索框的键盘会挡住底栏）；favorites 打开收藏页（三个主页面在同一个可左右滑动的 Home 里）
 adb shell am start -S -n app.jisho/.MainActivity --es tab badges     # debug 版：编号样张（方框一～二十、圆圈 1～99，浅色和深色）
-adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920 --es labelStyle Bracket
-                                                 # debug 版：直接打开某辞书词条；可切换标签样式对比截图
+adb shell am start -S -n app.jisho/.MainActivity --es open meikyo3:51920
+                                                 # debug 版：直接打开某辞书词条
 ```
 
 ## 工作方式

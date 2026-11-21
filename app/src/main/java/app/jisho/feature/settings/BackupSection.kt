@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -76,22 +77,11 @@ fun BackupSection(viewModel: BackupViewModel) {
     val pending by viewModel.pending.collectAsStateWithLifecycle()
     val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { it?.let(viewModel::backupTo) }
     val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(viewModel::open) }
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
-
-    Text(
-        stringResource(R.string.settings_backup_desc),
-        style = MaterialTheme.typography.bodyMedium,
-        color = muted,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-    )
-    Row(Modifier.padding(horizontal = 8.dp)) {
-        TextButton(onClick = { save.launch(BackupManager.fileName()) }) { Text(stringResource(R.string.settings_backup_now)) }
-        TextButton(onClick = { open.launch(arrayOf("application/zip", "application/octet-stream")) }) { Text(stringResource(R.string.settings_restore)) }
-    }
-    if (canUndo) {
-        TextButton(onClick = { viewModel.undoRestore() }, modifier = Modifier.padding(horizontal = 8.dp)) {
-            Text(stringResource(R.string.settings_undo_restore))
-        }
+    // The card above holds the title and description; these are its actions, in one row.
+    CardButtons {
+        FilledTonalButton(onClick = { save.launch(BackupManager.fileName()) }) { Text(stringResource(R.string.settings_backup_now)) }
+        FilledTonalButton(onClick = { open.launch(arrayOf("application/zip", "application/octet-stream")) }) { Text(stringResource(R.string.settings_restore)) }
+        if (canUndo) FilledTonalButton(onClick = { viewModel.undoRestore() }) { Text(stringResource(R.string.settings_undo_restore)) }
     }
 
     pending?.let { b ->

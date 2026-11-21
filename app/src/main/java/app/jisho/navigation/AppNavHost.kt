@@ -27,6 +27,7 @@ import app.jisho.feature.search.InkModelMemory
 import app.jisho.feature.settings.SettingsScreen
 import app.jisho.feature.settings.BackupViewModel
 import app.jisho.feature.settings.SettingsViewModel
+import app.jisho.feature.settings.AndroidAppInfoSource
 import app.jisho.core.database.Inflection
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -115,6 +116,16 @@ private fun targetRoute(target: String): String? {
 
 private val CreationExtras.app: JishoApp get() = this[APPLICATION_KEY] as JishoApp
 
+/** The handwriting panel's view model; the settings page shares it (same back stack entry) to show and delete the model. */
+@Composable
+private fun handwriting(): HandwritingViewModel = appViewModel {
+    val settings = app.settings
+    HandwritingViewModel(HandwritingRecognizer(), object : InkModelMemory {
+        override suspend fun wasReady() = settings.handwritingModelReady()
+        override suspend fun remember(ready: Boolean) = settings.setHandwritingModelReady(ready)
+    })
+}
+
 @Composable
 private inline fun <reified VM : ViewModel> appViewModel(key: String? = null, noinline create: CreationExtras.() -> VM): VM =
     viewModel(key = key, factory = viewModelFactory { initializer(create) })
@@ -156,14 +167,8 @@ fun AppNavHost(
             Home(startPage) { page, active ->
                 when (page) {
                     0 -> SearchScreen(
-                        viewModel = appViewModel { SearchViewModel(app.repository, initialQuery, refresh = app.resultsVersion, user = app.userStore) },
-                        handwriting = appViewModel {
-                            val settings = app.settings
-                            HandwritingViewModel(HandwritingRecognizer(), object : InkModelMemory {
-                                override suspend fun wasReady() = settings.handwritingModelReady()
-                                override suspend fun remember(ready: Boolean) = settings.setHandwritingModelReady(ready)
-                            })
-                        },
+                        viewModel = appViewModel { SearchViewModel(app.repository, initialQuery, refresh = app.resultsVersion, user = app.userStore, autoKeyboardSetting = app.settings.autoKeyboard) },
+                        handwriting = handwriting(),
                         onOpenEntry = { c -> nav.navigate(entryRoute(c)) },
                         onOpenDictEntry = { d, id -> nav.navigate(Routes.dict(d, id)) },
                         onLookup = { nav.navigate(Routes.lookup(it)) },
@@ -174,8 +179,10 @@ fun AppNavHost(
                         nav.navigate(Routes.folder(id))
                     }
                     else -> SettingsScreen(
-                        appViewModel { SettingsViewModel(app.settings, app.repository) },
+                        appViewModel { SettingsViewModel(app.settings, app.repository, AndroidAppInfoSource(app, app.dataPacks)) },
                         appViewModel { BackupViewModel(app.backups) },
+                        handwriting = handwriting(),
+                        active = active,
                     ) { nav.navigate(Routes.IMPORT) }
                 }
             }
@@ -191,7 +198,7 @@ fun AppNavHost(
         }
         val entryCallbacks: @Composable (EntryTarget, String) -> Unit = { target, key ->
             EntryScreen(
-                viewModel = appViewModel(key) { EntryViewModel(app.repository, target, app.userStore) },
+                viewModel = appViewModel(key) { EntryViewModel(app.repository, target, app.userStore, app.settings.entryExpand) },
                 onBack = { nav.popBackStack() },
                 onOpenDictEntry = { d, id -> nav.navigate(Routes.dict(d, id)) },
                 onLookup = { nav.navigate(Routes.lookup(it)) },

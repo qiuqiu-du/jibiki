@@ -20,6 +20,7 @@ class HandwritingViewModelTest {
         var downloads = 0
         override suspend fun isModelReady() = check.await()
         override suspend fun downloadModel() { downloads++ }
+        override suspend fun deleteModel() {}
         override suspend fun recognize(strokes: List<List<InkPoint>>, width: Float, height: Float, preContext: String, max: Int) = emptyList<String>()
         override fun close() {}
     }

@@ -19,6 +19,16 @@ private val Light = lightColorScheme(
     surfaceContainerLow = Color(0xFFF5F2FA), surfaceContainer = Color(0xFFEFEDF4),
     surfaceContainerHigh = Color(0xFFE9E7EF), outlineVariant = Color(0xFFC7C5D0),
     background = Color(0xFFFBF8FF),
+    // Every other role too, from the same indigo palette: roles left out fall back to Material's
+    // purple defaults (filled-tonal buttons, switch tracks, outlines, the snackbar's action).
+    onBackground = Color(0xFF1B1B21), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE0E1F9), onSecondaryContainer = Color(0xFF181A2C),
+    tertiary = Color(0xFF77536D), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFD7F1), onTertiaryContainer = Color(0xFF2D1228),
+    outline = Color(0xFF777680), surfaceTint = Color(0xFF3949AB),
+    surfaceContainerLowest = Color.White, surfaceContainerHighest = Color(0xFFE4E1E9),
+    surfaceDim = Color(0xFFDBD9E0), surfaceBright = Color(0xFFFBF8FF),
+    inverseSurface = Color(0xFF303036), inverseOnSurface = Color(0xFFF2EFF7), inversePrimary = Color(0xFFB9C3FF),
 )
 private val Dark = darkColorScheme(
     primary = Color(0xFFB9C3FF), onPrimary = Color(0xFF11277C),
@@ -28,6 +38,14 @@ private val Dark = darkColorScheme(
     surfaceContainerLow = Color(0xFF1B1B21), surfaceContainer = Color(0xFF1F1F25),
     surfaceContainerHigh = Color(0xFF2A292F), outlineVariant = Color(0xFF46464F),
     background = Color(0xFF131318),
+    onBackground = Color(0xFFE4E1E9), onSecondary = Color(0xFF2D2F42),
+    secondaryContainer = Color(0xFF434659), onSecondaryContainer = Color(0xFFE0E1F9),
+    tertiary = Color(0xFFE6BAD7), onTertiary = Color(0xFF44263D),
+    tertiaryContainer = Color(0xFF5D3C55), onTertiaryContainer = Color(0xFFFFD7F1),
+    outline = Color(0xFF90909A), surfaceTint = Color(0xFFB9C3FF),
+    surfaceContainerLowest = Color(0xFF0E0E13), surfaceContainerHighest = Color(0xFF35343A),
+    surfaceDim = Color(0xFF131318), surfaceBright = Color(0xFF39383F),
+    inverseSurface = Color(0xFFE4E1E9), inverseOnSurface = Color(0xFF303036), inversePrimary = Color(0xFF3949AB),
 )
 
 /** Japanese text must carry the ja locale so the system picks Japanese glyph forms (Noto Sans CJK JP). */

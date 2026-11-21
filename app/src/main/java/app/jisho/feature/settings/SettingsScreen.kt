@@ -1,6 +1,20 @@
 package app.jisho.feature.settings
 
 import app.jisho.core.data.SummaryPrefs
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.FlowRowScope
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Surface
+import app.jisho.core.data.EntryExpand
+import app.jisho.core.data.ThemeMode
+import app.jisho.feature.search.HandwritingViewModel
+import app.jisho.feature.search.InkModelState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.MutableStateFlow
 import app.jisho.core.data.SummaryPlace
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Checkbox
@@ -61,7 +75,22 @@ import kotlinx.coroutines.launch
 class SettingsViewModel(
     private val settings: SettingsRepository,
     private val repository: DictionaryList,
+    private val appInfo: AppInfoSource,
 ) : ViewModel() {
+    val entryExpand: StateFlow<EntryExpand> = settings.entryExpand.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EntryExpand.First)
+    val theme: StateFlow<ThemeMode> = settings.theme.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.System)
+    val autoKeyboard: StateFlow<Boolean> = settings.autoKeyboard.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setEntryExpand(e: EntryExpand) = viewModelScope.launch { settings.setEntryExpand(e) }
+    fun setTheme(t: ThemeMode) = viewModelScope.launch { settings.setTheme(t) }
+    fun setAutoKeyboard(on: Boolean) = viewModelScope.launch { settings.setAutoKeyboard(on) }
+
+    private val _info = MutableStateFlow<AppInfo?>(null)
+    /** null until first read; read each time the page comes into view (sizes change). */
+    val info: StateFlow<AppInfo?> = _info
+
+    fun refreshInfo() = viewModelScope.launch { _info.value = runCatching { appInfo.read() }.getOrNull() }
+
     val lemmatizerMode: StateFlow<LemmatizerMode?> =
         settings.lemmatizerMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -99,8 +128,23 @@ class SettingsViewModel(
 }
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, backup: BackupViewModel, onReimport: () -> Unit) {
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    backup: BackupViewModel,
+    /** Shared with the search page's handwriting panel: model state and deletion. */
+    handwriting: HandwritingViewModel,
+    /** True while this page is in view: storage figures are read then. */
+    active: Boolean,
+    onReimport: () -> Unit,
+) {
     val mode by viewModel.lemmatizerMode.collectAsStateWithLifecycle()
+    val expand by viewModel.entryExpand.collectAsStateWithLifecycle()
+    val theme by viewModel.theme.collectAsStateWithLifecycle()
+    val autoKeyboard by viewModel.autoKeyboard.collectAsStateWithLifecycle()
+    val info by viewModel.info.collectAsStateWithLifecycle()
+    val model by handwriting.state.map { it.model }.collectAsStateWithLifecycle(InkModelState.Checking)
+    // Read on every visit, and again when the model is downloaded or deleted.
+    LaunchedEffect(active, model) { if (active) viewModel.refreshInfo() }
     val dictionaries by viewModel.dictionaries.collectAsStateWithLifecycle()
     val summary by viewModel.summaryPrefs.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -112,49 +156,138 @@ fun SettingsScreen(viewModel: SettingsViewModel, backup: BackupViewModel, onReim
             style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
         )
-        SectionTitle(R.string.settings_dictionaries)
-        Text(
-            stringResource(R.string.settings_dictionaries_desc),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-        )
-        dictionaries.forEachIndexed { i, d ->
-            DictionaryRow(
-                d,
-                canMoveUp = i > 0,
-                canMoveDown = i < dictionaries.lastIndex,
-                onMove = { delta -> viewModel.move(i, delta) },
-                onEnabled = { viewModel.setEnabled(d.info.id, it) },
-            )
-        }
-        TextButton(onClick = onReimport, modifier = Modifier.padding(horizontal = 8.dp)) {
-            Text(stringResource(R.string.settings_reimport))
-        }
-        SectionTitle(R.string.settings_summary)
-        SummaryTable(summary, viewModel::setSummary)
-        SectionTitle(R.string.settings_lemmatizer)
-        Column(Modifier.selectableGroup()) {
-            Option(mode == LemmatizerMode.Kuromoji, R.string.settings_lemmatizer_kuromoji, R.string.settings_lemmatizer_kuromoji_desc) {
-                viewModel.setLemmatizerMode(LemmatizerMode.Kuromoji)
+        // Three groups (design-spec 5): dictionaries and what is shown from them; app-wide
+        // settings; the user's data and read-only information. Each setting is one card.
+        GroupTitle(R.string.settings_group_dictionaries)
+        SettingCard(R.string.settings_dictionaries, R.string.settings_dictionaries_desc) {
+            dictionaries.forEachIndexed { i, d ->
+                DictionaryRow(
+                    d,
+                    canMoveUp = i > 0,
+                    canMoveDown = i < dictionaries.lastIndex,
+                    onMove = { delta -> viewModel.move(i, delta) },
+                    onEnabled = { viewModel.setEnabled(d.info.id, it) },
+                )
             }
-            Option(mode == LemmatizerMode.Rules, R.string.settings_lemmatizer_rules, R.string.settings_lemmatizer_rules_desc) {
-                viewModel.setLemmatizerMode(LemmatizerMode.Rules)
+            CardButtons { FilledTonalButton(onClick = onReimport) { Text(stringResource(R.string.settings_reimport)) } }
+        }
+        SettingCard(R.string.settings_entry_expand) {
+            Column(Modifier.selectableGroup()) {
+                Choice(expand == EntryExpand.First, R.string.settings_entry_expand_first) { viewModel.setEntryExpand(EntryExpand.First) }
+                Choice(expand == EntryExpand.All, R.string.settings_entry_expand_all) { viewModel.setEntryExpand(EntryExpand.All) }
+                Choice(expand == EntryExpand.None, R.string.settings_entry_expand_none) { viewModel.setEntryExpand(EntryExpand.None) }
             }
         }
-        SectionTitle(R.string.settings_backup)
-        BackupSection(backup)
+        SettingCard(R.string.settings_summary, R.string.settings_summary_desc) {
+            SummaryTable(summary, viewModel::setSummary)
+        }
+
+        GroupTitle(R.string.settings_group_general)
+        SettingCard(R.string.settings_theme) {
+            Column(Modifier.selectableGroup()) {
+                Choice(theme == ThemeMode.System, R.string.settings_theme_system) { viewModel.setTheme(ThemeMode.System) }
+                Choice(theme == ThemeMode.Light, R.string.settings_theme_light) { viewModel.setTheme(ThemeMode.Light) }
+                Choice(theme == ThemeMode.Dark, R.string.settings_theme_dark) { viewModel.setTheme(ThemeMode.Dark) }
+            }
+        }
+        SettingCard(R.string.settings_keyboard) {
+            SwitchRow(R.string.settings_auto_keyboard, R.string.settings_auto_keyboard_desc, autoKeyboard, viewModel::setAutoKeyboard)
+        }
+        SettingCard(R.string.settings_lemmatizer) {
+            Column(Modifier.selectableGroup()) {
+                Option(mode == LemmatizerMode.Kuromoji, R.string.settings_lemmatizer_kuromoji, R.string.settings_lemmatizer_kuromoji_desc) {
+                    viewModel.setLemmatizerMode(LemmatizerMode.Kuromoji)
+                }
+                Option(mode == LemmatizerMode.Rules, R.string.settings_lemmatizer_rules, R.string.settings_lemmatizer_rules_desc) {
+                    viewModel.setLemmatizerMode(LemmatizerMode.Rules)
+                }
+            }
+        }
+
+        GroupTitle(R.string.settings_group_data)
+        SettingCard(R.string.settings_backup, R.string.settings_backup_desc) { BackupSection(backup) }
+        info?.let { AboutSection(it, model, onDeleteModel = handwriting::deleteModel) }
     }
     }
 }
 
+/**
+ * One setting as a card: its title, an optional description and its controls together, so it
+ * is clear what belongs to which setting. Titles are plain text in the body color; anything
+ * tappable is a control (switch, radio, filled button), never colored text that looks like it.
+ */
 @Composable
-private fun SectionTitle(title: Int) {
+internal fun SettingCard(title: Int, description: Int? = null, content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        Column(Modifier.padding(vertical = 14.dp)) {
+            Text(stringResource(title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = CARD_INSET))
+            description?.let {
+                Text(
+                    stringResource(it),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = CARD_INSET, end = CARD_INSET, top = 4.dp),
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            content()
+        }
+    }
+}
+
+/** A card's action buttons: filled, in one row, wrapping when the text is large. */
+@Composable
+internal fun CardButtons(content: @Composable FlowRowScope.() -> Unit) {
+    FlowRow(
+        Modifier.fillMaxWidth().padding(start = CARD_INSET, end = CARD_INSET, top = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        content = content,
+    )
+}
+
+/** Left and right inset of text inside a [SettingCard]. */
+internal val CARD_INSET = 16.dp
+
+/** One choice of a radio group, title only. */
+@Composable
+private fun Choice(selected: Boolean, title: Int, onSelect: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().selectable(selected, role = Role.RadioButton, onClick = onSelect)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null, modifier = Modifier.padding(12.dp))
+        Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+/** A title, a description and an on/off switch; the whole row toggles. */
+@Composable
+private fun SwitchRow(title: Int, description: Int, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChange)
+            .padding(start = CARD_INSET, end = CARD_INSET, top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(description), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+/** A first-level group heading above its cards. */
+@Composable
+private fun GroupTitle(title: Int) {
     Text(
         stringResource(title),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 4.dp),
+        style = MaterialTheme.typography.titleLarge,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 6.dp),
     )
 }
 
@@ -168,7 +301,7 @@ private fun DictionaryRow(
     onEnabled: (Boolean) -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 2.dp, bottom = 2.dp),
+        Modifier.fillMaxWidth().padding(start = CARD_INSET, end = 8.dp, top = 2.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -190,14 +323,8 @@ private fun DictionaryRow(
 /** Rows: where (search results, favorites, entry header); columns: Japanese, Chinese line. */
 @Composable
 private fun SummaryTable(p: SummaryPrefs, onChange: (chinese: Boolean, SummaryPlace, Boolean) -> Unit) {
-    Text(
-        stringResource(R.string.settings_summary_desc),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-    )
     val column = Modifier.width(72.dp)
-    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = CARD_INSET, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Spacer(Modifier.weight(1f))
         for (label in listOf(R.string.settings_summary_ja, R.string.settings_summary_zh)) {
             Text(stringResource(label), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center, modifier = column)
@@ -209,7 +336,7 @@ private fun SummaryTable(p: SummaryPrefs, onChange: (chinese: Boolean, SummaryPl
         SummaryPlace.Header to R.string.settings_summary_header,
     )
     for ((place, label) in places) {
-        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = CARD_INSET, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(label), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             for (chinese in listOf(false, true)) {
                 val on = place in (if (chinese) p.chinese else p.japanese)
@@ -225,7 +352,7 @@ private fun SummaryTable(p: SummaryPrefs, onChange: (chinese: Boolean, SummaryPl
 private fun Option(selected: Boolean, title: Int, description: Int, onSelect: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().selectable(selected, role = Role.RadioButton, onClick = onSelect)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.Top,
     ) {
         RadioButton(selected = selected, onClick = null, modifier = Modifier.padding(12.dp))

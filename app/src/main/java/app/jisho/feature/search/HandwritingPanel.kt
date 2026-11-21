@@ -116,6 +116,14 @@ class HandwritingViewModel(private val recognizer: InkEngine, private val memory
         _state.update { it.copy(model = r.fold({ InkModelState.Ready }) { e -> InkModelState.Failed(e.message.orEmpty()) }) }
     }
 
+    /** Deletes the model; the panel shows the download button again. */
+    fun deleteModel() = viewModelScope.launch {
+        val r = runCatching { recognizer.deleteModel() }
+        memory.remember(false)
+        clear()
+        _state.update { it.copy(model = r.fold({ InkModelState.NotDownloaded }) { e -> InkModelState.Failed(e.message.orEmpty()) }) }
+    }
+
     fun addStroke(points: List<InkPoint>, width: Float, height: Float, typed: String) {
         if (points.isEmpty()) return
         size = width to height

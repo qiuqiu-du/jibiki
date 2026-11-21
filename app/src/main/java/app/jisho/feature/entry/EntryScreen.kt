@@ -1,6 +1,10 @@
 package app.jisho.feature.entry
 
 import app.jisho.core.data.SummaryPlace
+import app.jisho.core.data.EntryExpand
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -80,8 +84,6 @@ import app.jisho.core.designsystem.zh
 import app.jisho.core.designsystem.renderBody
 import app.jisho.core.designsystem.gaijiContent
 import app.jisho.core.designsystem.badgeContent
-import app.jisho.core.designsystem.DefaultLabelStyle
-import app.jisho.DebugOptions
 import app.jisho.core.userdata.Folder
 import app.jisho.core.userdata.UserStore
 import app.jisho.core.userdata.WordRef
@@ -181,7 +183,13 @@ class EntryViewModel(
     target: EntryTarget,
     /** Favorites and history; null in tests that only check what is shown. */
     private val user: UserStore? = null,
+    /** Which dictionaries open expanded (setting). */
+    private val expandSetting: Flow<EntryExpand> = flowOf(EntryExpand.First),
 ) : ViewModel() {
+    /** Read before the page is shown, so sections start in their final state. */
+    var expand: EntryExpand = EntryExpand.First
+        private set
+
     private val _state = MutableStateFlow<EntryUiState>(EntryUiState.Loading)
     val state: StateFlow<EntryUiState> = _state
 
@@ -198,6 +206,7 @@ class EntryViewModel(
     init {
         viewModelScope.launch {
             val s = load(target)
+            expand = expandSetting.first()
             _state.value = s
             val word = (s as? EntryUiState.Ready)?.page?.word ?: return@launch
             _word.value = word
@@ -327,7 +336,7 @@ fun EntryScreen(
             HorizontalPager(pager, Modifier.fillMaxSize(), userScrollEnabled = false) { page ->
                 val tab = EntryTab.entries[page]
                 if (tab == EntryTab.Offline || query == null) {
-                    OfflineContent(state, onOpenDictEntry, onLookup, onOpenEntry, bottomSpace = if (query != null) 72.dp else 0.dp)
+                    OfflineContent(state, viewModel.expand, onOpenDictEntry, onLookup, onOpenEntry, bottomSpace = if (query != null) 72.dp else 0.dp)
                 } else {
                     // A site loads once its page is settled on (not while swiping past it).
                     WebPage(tab, query, webViews, open = pager.settledPage == page)
@@ -386,6 +395,7 @@ private fun EntryTopBar(onBack: () -> Unit, starred: Boolean, starEnabled: Boole
 @Composable
 private fun OfflineContent(
     state: EntryUiState,
+    expand: EntryExpand,
     onOpenDictEntry: (String, Long) -> Unit,
     onLookup: (String) -> Unit,
     onOpenEntry: (Candidate) -> Unit,
@@ -407,7 +417,14 @@ private fun OfflineContent(
                         if (p.baseForms.isNotEmpty()) BaseForms(p.baseForms, onOpenEntry)
                     }
                     p.sections.forEachIndexed { i, (dict, entries) ->
-                        DictSection(dict, entries, initiallyExpanded = i == 0) { href ->
+                        DictSection(
+                            dict, entries,
+                            initiallyExpanded = when (expand) {
+                                EntryExpand.First -> i == 0
+                                EntryExpand.All -> true
+                                EntryExpand.None -> false
+                            },
+                        ) { href ->
                             followLink(dict.id, href, onOpenDictEntry, onLookup)
                         }
                     }
@@ -520,9 +537,7 @@ private fun DictSection(dict: DictInfo, entries: List<DictEntry>, initiallyExpan
         muted = MaterialTheme.colorScheme.onSurfaceVariant,
         example = MaterialTheme.colorScheme.secondary,
         link = MaterialTheme.colorScheme.primary,
-        labelBackground = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
     )
-    val labelStyle = DebugOptions.labelStyle ?: DefaultLabelStyle
     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().animateContentSize()) {
             Text(
@@ -537,7 +552,7 @@ private fun DictSection(dict: DictInfo, entries: List<DictEntry>, initiallyExpan
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     entries.forEach { entry ->
-                        val body = remember(entry.id, colors, labelStyle) { renderBody(entry.body, colors, labelStyle, onLink) }
+                        val body = remember(entry.id, colors) { renderBody(entry.body, colors, onLink) }
                         val inline = remember(entry.id, body) { gaijiContent(entry.images) + badgeContent(body) }
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(entry.title, style = MaterialTheme.typography.titleMedium.ja(), fontWeight = FontWeight.SemiBold)

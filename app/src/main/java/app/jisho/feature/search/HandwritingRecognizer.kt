@@ -25,6 +25,8 @@ data class InkPoint(val x: Float, val y: Float, val t: Long)
 interface InkEngine {
     suspend fun isModelReady(): Boolean
     suspend fun downloadModel()
+    /** Removes the downloaded model (settings → 数据与关于); the panel offers the download again. */
+    suspend fun deleteModel()
     /** Up to [max] candidate strings for the strokes; [preContext] is the text already typed. */
     suspend fun recognize(strokes: List<List<InkPoint>>, width: Float, height: Float, preContext: String, max: Int = 8): List<String>
     fun close()
@@ -46,6 +48,13 @@ class HandwritingRecognizer(private val background: CoroutineDispatcher = Dispat
 
     override suspend fun downloadModel() = withContext(background) {
         models.download(model, DownloadConditions.Builder().build()).await()
+        Unit
+    }
+
+    override suspend fun deleteModel() = withContext(background) {
+        recognizer?.close()
+        recognizer = null
+        models.deleteDownloadedModel(model).await()
         Unit
     }
 

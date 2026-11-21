@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Jisho" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- The window shows before Compose draws (launch): same color as the app's background. -->
+    <style name="Theme.Jisho" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/app_background</item>
+    </style>
 </resources>

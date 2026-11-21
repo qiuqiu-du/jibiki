@@ -15,7 +15,10 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:configChanges="uiMode"
             android:windowSoftInputMode="adjustResize">
+            <!-- uiMode: switching light/dark recomposes in place instead of recreating the page,
+                 which showed a black frame (about 170 ms) in between. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
