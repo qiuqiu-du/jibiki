@@ -10,15 +10,16 @@
         android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.Jisho">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="uiMode"
+            android:configChanges="uiMode|locale|layoutDirection"
             android:windowSoftInputMode="adjustResize">
-            <!-- uiMode: switching light/dark recomposes in place instead of recreating the page,
-                 which showed a black frame (about 170 ms) in between. -->
+            <!-- uiMode, locale: switching light/dark or the language recomposes in place instead of
+                 recreating the page, which showed a black frame (about 170 ms) in between. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

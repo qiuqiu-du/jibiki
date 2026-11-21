@@ -21,7 +21,7 @@ object FavoritesCsv {
     private val TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
     fun export(rows: List<ExportRow>, zone: ZoneId = ZoneId.systemDefault()): String =
-        "﻿" + Csv.write(
+        "\uFEFF" + Csv.write(
             listOf(HEADER) + rows.map { r ->
                 listOf(
                     r.folder, r.favorite.word.headword, r.favorite.word.reading, r.accent, r.definition, r.chinese,

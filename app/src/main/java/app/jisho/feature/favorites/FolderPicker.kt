@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import app.jisho.R
 import app.jisho.core.designsystem.ja
@@ -69,7 +70,7 @@ fun FolderPickerSheet(
                         if (single) Spacer(Modifier.size(12.dp)) else Checkbox(checked = f.id in checked, onCheckedChange = { onToggle(f.id) })
                         Text(f.name, style = MaterialTheme.typography.bodyLarge.ja(), modifier = Modifier.weight(1f).padding(vertical = 14.dp))
                         Text(
-                            stringResource(R.string.favorites_words, f.count),
+                            pluralStringResource(R.plurals.favorites_words, f.count, f.count),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(end = 12.dp),

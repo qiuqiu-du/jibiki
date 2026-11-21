@@ -218,7 +218,7 @@ sealed interface AppResult<out T> {
 - **文件名和目录名一律用英文**：小写，单词之间用 `-` 连接（例如 `design-spec.md`、`build_core.py` 这类 Python 脚本按 Python 惯例用 `_`）；Kotlin 源文件按类名用 PascalCase。
 - **中文只出现在**和用户的对话，以及开发设计相关的文档里（`docs/`、`AGENTS.md`、`Architecture.md`）。
 - **日文只作为数据出现**：辞书内容、测试用例里的词、界面上显示的日文文本。
-- 界面文字一律放在 `res/values/strings.xml` 里，不写死在代码中。
+- 界面文字一律放在 `res/values/strings.xml` 里，不写死在代码中；日文、英文译文在 `values-ja/`、`values-en/`，三份同时维护（`TranslationTest` 检查），辞书术语标 `translatable="false"` 只留日文。
 - 公共函数和类必须写 KDoc，说明**为什么**这样做，不用复述代码在做什么。
 
 ---

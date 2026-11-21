@@ -38,7 +38,8 @@ import java.io.File
 import java.time.LocalDate
 
 /** A message for the snackbar: a string resource and its arguments. */
-data class Message(val res: Int, val args: List<Any> = emptyList(), val undo: (() -> Unit)? = null)
+/** A snackbar message: [res] is a string, or a plurals resource when [count] is given. */
+data class Message(val res: Int, val args: List<Any> = emptyList(), val count: Int? = null, val undo: (() -> Unit)? = null)
 
 enum class ExportFormat(val extension: String, val mime: String) {
     Csv("csv", "text/csv"),
@@ -73,7 +74,7 @@ private suspend fun export(
         ExportFormat.Anki -> withContext(Dispatchers.IO) { files.anki(transfer, rows, deck) }
     }
     files.write(uri, bytes)
-    Message(R.string.favorites_exported, listOf(rows.distinctBy { it.favorite.word.headword to it.favorite.word.reading }.size))
+    rows.distinctBy { it.favorite.word.headword to it.favorite.word.reading }.size.let { n -> Message(R.plurals.favorites_exported, listOf(n), count = n) }
 }.getOrElse { Message(R.string.favorites_file_failed) }
 
 /** The folder list (favorites tab): folders, plus exporting everything and importing CSV. */
@@ -190,7 +191,7 @@ class FolderViewModel(
         if (removed.isEmpty()) return
         viewModelScope.launch {
             store.removeFavorites(folderId, words)
-            _messages.emit(Message(R.string.favorites_removed, listOf(removed.size)) { viewModelScope.launch { store.restoreFavorites(removed) } })
+            _messages.emit(Message(R.plurals.favorites_removed, listOf(removed.size), count = removed.size) { viewModelScope.launch { store.restoreFavorites(removed) } })
         }
     }
 
@@ -199,7 +200,7 @@ class FolderViewModel(
         _selected.value = emptySet()
         viewModelScope.launch {
             store.moveFavorites(folderId, to.id, words)
-            _messages.emit(Message(R.string.favorites_moved, listOf(words.size, toName)))
+            _messages.emit(Message(R.plurals.favorites_moved, listOf(words.size, toName), count = words.size))
         }
     }
 
@@ -209,7 +210,7 @@ class FolderViewModel(
         viewModelScope.launch {
             val id = store.createFolder(name)
             store.moveFavorites(folderId, id, words)
-            _messages.emit(Message(R.string.favorites_moved, listOf(words.size, name)))
+            _messages.emit(Message(R.plurals.favorites_moved, listOf(words.size, name), count = words.size))
         }
     }
 }

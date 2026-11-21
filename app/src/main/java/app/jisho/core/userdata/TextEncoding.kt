@@ -19,7 +19,7 @@ object TextEncoding {
 
     fun decode(bytes: ByteArray, encoding: CsvEncoding): String {
         val hasBom = bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()
-        if (hasBom) return strict(bytes, Charsets.UTF_8)!!.removePrefix("﻿")
+        if (hasBom) return strict(bytes, Charsets.UTF_8)!!.removePrefix("\uFEFF")
         if (encoding == CsvEncoding.Utf8) strict(bytes, Charsets.UTF_8)?.let { return it }
         val ansi = ANSI.filter { Charset.isSupported(it) }
             .mapNotNull { name -> strict(bytes, Charset.forName(name)) }

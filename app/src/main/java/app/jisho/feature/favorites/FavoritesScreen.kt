@@ -55,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.jisho.R
@@ -71,7 +72,8 @@ fun MessageEffect(messages: kotlinx.coroutines.flow.SharedFlow<Message>, host: S
             // A new message replaces the one showing (deleting several rows one after another).
             host.currentSnackbarData?.dismiss()
             launch {
-                val text = context.getString(m.res, *m.args.toTypedArray())
+                val args = m.args.toTypedArray()
+                val text = m.count?.let { context.resources.getQuantityString(m.res, it, *args) } ?: context.getString(m.res, *args)
                 val r = host.showSnackbar(text, m.undo?.let { context.getString(R.string.common_undo) }, duration = if (m.undo != null) SnackbarDuration.Long else SnackbarDuration.Short)
                 if (r == SnackbarResult.ActionPerformed) m.undo?.invoke()
             }
@@ -283,7 +285,7 @@ private fun FolderTitle(f: Folder, modifier: Modifier) {
     Column(modifier) {
         Text(f.name, style = MaterialTheme.typography.titleMedium.ja())
         Text(
-            stringResource(R.string.favorites_words, f.count),
+            pluralStringResource(R.plurals.favorites_words, f.count, f.count),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

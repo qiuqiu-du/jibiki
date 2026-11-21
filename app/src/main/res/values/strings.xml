@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">辞書</string>
+    <string name="app_name" translatable="false">辞書</string>
 
     <!-- Import -->
-    <string name="import_title">导入词库</string>
-    <string name="import_body">首次使用需要导入词库数据包。\n\n1. 在电脑上运行：adb push datapacks/ /sdcard/Download/jisho/\n2. 点下面的按钮，选择 Download/jisho 文件夹。</string>
+    <string name="import_title">导入数据包</string>
+    <string name="import_body">首次使用需要导入数据包。\n\n1. 在电脑上运行：adb push datapacks/ /sdcard/Download/jisho/\n2. 点下面的按钮，选择 Download/jisho 文件夹。</string>
     <string name="import_pick_folder">选择文件夹</string>
     <string name="import_copying">正在导入 %1$s（%2$d/%3$d）</string>
     <string name="import_no_core">所选文件夹里没有 core.db</string>
@@ -12,51 +12,51 @@
     <string name="import_failed">导入失败：%1$s</string>
 
     <!-- Search -->
-    <string name="search_hint">输入日语、假名或罗马音</string>
+    <string name="search_hint">输入汉字、假名或罗马音</string>
     <string name="search_clear">清空</string>
     <string name="search_web">查「%1$s」</string>
-    <string name="search_web_desc">离线辞书里没有，打开词条页到网页词典里查，也可以收藏</string>
+    <string name="search_web_desc">离线辞书里没有，可在网页词典查询或收藏</string>
     <string name="search_dict_only">只收录在单本辞书里的词条</string>
-    <string name="search_inflection">← %1$s</string>
+    <string name="search_inflection" translatable="false">← %1$s</string>
     <string name="search_inflection_reasons">← %1$s（%2$s）</string>
     <string name="search_segments">句中词语</string>
     <string name="search_handwriting">手写</string>
     <string name="search_empty_hint">输入后实时显示候选</string>
 
     <!-- Inflection labels: keys of assets/deinflect_rules.tsv -->
-    <string name="lemma_reason_adverbial">連用</string>
-    <string name="lemma_reason_attributive">連体</string>
-    <string name="lemma_reason_become">変化</string>
-    <string name="lemma_reason_causative">使役</string>
-    <string name="lemma_reason_causative_passive">使役受身</string>
-    <string name="lemma_reason_copula">断定</string>
-    <string name="lemma_reason_stem">連用形</string>
-    <string name="lemma_reason_cond">仮定</string>
-    <string name="lemma_reason_contraction">縮約</string>
-    <string name="lemma_reason_even">逆接</string>
-    <string name="lemma_reason_finish">完了</string>
-    <string name="lemma_reason_honorific">敬語</string>
-    <string name="lemma_reason_imperative">命令</string>
-    <string name="lemma_reason_must">義務</string>
-    <string name="lemma_reason_neg">否定</string>
-    <string name="lemma_reason_passive">受身</string>
-    <string name="lemma_reason_passive_potential">受身/可能</string>
-    <string name="lemma_reason_past">過去</string>
-    <string name="lemma_reason_polite">丁寧</string>
-    <string name="lemma_reason_potential">可能</string>
-    <string name="lemma_reason_prepare">準備</string>
-    <string name="lemma_reason_progressive">継続</string>
-    <string name="lemma_reason_request">依頼</string>
-    <string name="lemma_reason_resultative">結果</string>
-    <string name="lemma_reason_seems">様態</string>
-    <string name="lemma_reason_tara">条件</string>
-    <string name="lemma_reason_tari">並列</string>
-    <string name="lemma_reason_te">て形</string>
-    <string name="lemma_reason_too">過度</string>
-    <string name="lemma_reason_try">試行</string>
-    <string name="lemma_reason_volitional">意志</string>
-    <string name="lemma_reason_want">希望</string>
-    <string name="lemma_reason_while">同時</string>
+    <string name="lemma_reason_adverbial" translatable="false">連用</string>
+    <string name="lemma_reason_attributive" translatable="false">連体</string>
+    <string name="lemma_reason_become" translatable="false">変化</string>
+    <string name="lemma_reason_causative" translatable="false">使役</string>
+    <string name="lemma_reason_causative_passive" translatable="false">使役受身</string>
+    <string name="lemma_reason_copula" translatable="false">断定</string>
+    <string name="lemma_reason_stem" translatable="false">連用形</string>
+    <string name="lemma_reason_cond" translatable="false">仮定</string>
+    <string name="lemma_reason_contraction" translatable="false">縮約</string>
+    <string name="lemma_reason_even" translatable="false">逆接</string>
+    <string name="lemma_reason_finish" translatable="false">完了</string>
+    <string name="lemma_reason_honorific" translatable="false">敬語</string>
+    <string name="lemma_reason_imperative" translatable="false">命令</string>
+    <string name="lemma_reason_must" translatable="false">義務</string>
+    <string name="lemma_reason_neg" translatable="false">否定</string>
+    <string name="lemma_reason_passive" translatable="false">受身</string>
+    <string name="lemma_reason_passive_potential" translatable="false">受身/可能</string>
+    <string name="lemma_reason_past" translatable="false">過去</string>
+    <string name="lemma_reason_polite" translatable="false">丁寧</string>
+    <string name="lemma_reason_potential" translatable="false">可能</string>
+    <string name="lemma_reason_prepare" translatable="false">準備</string>
+    <string name="lemma_reason_progressive" translatable="false">継続</string>
+    <string name="lemma_reason_request" translatable="false">依頼</string>
+    <string name="lemma_reason_resultative" translatable="false">結果</string>
+    <string name="lemma_reason_seems" translatable="false">様態</string>
+    <string name="lemma_reason_tara" translatable="false">条件</string>
+    <string name="lemma_reason_tari" translatable="false">並列</string>
+    <string name="lemma_reason_te" translatable="false">て形</string>
+    <string name="lemma_reason_too" translatable="false">過度</string>
+    <string name="lemma_reason_try" translatable="false">試行</string>
+    <string name="lemma_reason_volitional" translatable="false">意志</string>
+    <string name="lemma_reason_want" translatable="false">希望</string>
+    <string name="lemma_reason_while" translatable="false">同時</string>
 
     <!-- Handwriting -->
     <string name="hw_undo">撤销一笔</string>
@@ -72,8 +72,8 @@
 
     <!-- Entry page tabs -->
     <string name="entry_tab_offline">离线</string>
-    <string name="entry_tab_kotobank">コトバンク</string>
-    <string name="entry_tab_weblio">Weblio</string>
+    <string name="entry_tab_kotobank" translatable="false">コトバンク</string>
+    <string name="entry_tab_weblio" translatable="false">Weblio</string>
 
     <!-- Navigation and settings -->
     <string name="nav_search">查词</string>
@@ -82,7 +82,7 @@
     <string name="settings_title">设置</string>
     <string name="settings_lemmatizer">分词与变形还原</string>
     <string name="settings_lemmatizer_kuromoji">Kuromoji（默认）</string>
-    <string name="settings_lemmatizer_kuromoji_desc">能把整句切成单词；同时附上活用规则表的全部候选。启动后在后台加载约 0.3 秒、占内存约 70 MB。</string>
+    <string name="settings_lemmatizer_kuromoji_desc">可拆分整句，并附带规则表的全部候选。后台加载约 0.3 秒，占内存约 70 MB。</string>
     <string name="settings_lemmatizer_rules">活用规则表</string>
     <string name="settings_dictionaries">顺序与开关</string>
     <string name="settings_group_dictionaries">辞书与释义</string>
@@ -97,73 +97,84 @@
     <string name="settings_theme_system">跟随系统</string>
     <string name="settings_theme_light">浅色</string>
     <string name="settings_theme_dark">深色</string>
+    <string name="settings_language">语言</string>
+    <string name="settings_language_system">跟随系统</string>
+    <!-- Each language in its own language: the same in every translation. -->
+    <string name="settings_language_zh" translatable="false">中文</string>
+    <string name="settings_language_ja" translatable="false">日本語</string>
+    <string name="settings_language_en" translatable="false">English</string>
     <string name="settings_keyboard">键盘</string>
     <string name="settings_auto_keyboard">自动弹出</string>
-    <string name="settings_auto_keyboard_desc">打开 App、从词条页回到查词页时，直接进入搜索框并弹出键盘。</string>
+    <string name="settings_auto_keyboard_desc">打开 App 或从词条页返回时弹出。</string>
     <string name="settings_core_pack">核心索引</string>
-    <string name="settings_pack_line">%1$s · %2$s</string>
+    <string name="settings_pack_line" translatable="false">%1$s · %2$s</string>
     <string name="settings_handwriting">手写模型</string>
     <string name="settings_handwriting_ready">已下载，占用 %1$s。</string>
-    <string name="settings_handwriting_missing">未下载。在查词页打开手写面板即可下载（约 20 MB，需要联网）。</string>
+    <string name="settings_handwriting_missing">未下载。可在手写面板中下载（约 20 MB，需联网）。</string>
     <string name="settings_handwriting_delete">删除</string>
     <string name="settings_handwriting_delete_title">删除手写模型？</string>
-    <string name="settings_handwriting_delete_text">释放 %1$s。之后再用手写，需要重新下载（需要联网）。</string>
+    <string name="settings_handwriting_delete_text">释放 %1$s。再用手写需重新下载。</string>
     <string name="settings_storage">存储与版本</string>
     <string name="settings_storage_total">共占用 %1$s：数据包 %2$s、手写模型 %3$s、收藏与历史 %4$s</string>
     <string name="settings_version">版本 %1$s</string>
-    <string name="settings_dictionaries_desc">词条页按这个顺序显示。关掉的辞书不显示释义，也不参与搜索。</string>
+    <string name="settings_dictionaries_desc">词条页按此顺序显示；关闭的辞书不显示、不参与搜索。</string>
     <string name="settings_move_up">上移</string>
     <string name="settings_move_down">下移</string>
     <string name="settings_reimport">重新导入数据包</string>
-    <string name="settings_lemmatizer_rules_desc">只处理单个词，列出歧义词的所有原形；不占内存、无需加载。</string>
+    <string name="settings_lemmatizer_rules_desc">只处理单个词，列出歧义词的全部原形；不占内存。</string>
 
     <!-- Entry -->
     <string name="entry_back">返回</string>
     <string name="entry_favorite">收藏</string>
     <string name="entry_no_definition">离线辞书里没有这个词的释义</string>
     <string name="entry_not_found">找不到这个词条（数据包可能已更新），请重新搜索</string>
-    <string name="entry_common">常用</string>
-    <string name="entry_inflection">%1$s ← %2$s</string>
+    <string name="entry_common" translatable="false">常用</string>
+    <string name="entry_inflection" translatable="false">%1$s ← %2$s</string>
     <string name="entry_inflection_reasons">%1$s ← %2$s（%3$s）</string>
     <string name="entry_base_forms">可能是这些词的变形</string>
+    <string name="entry_base_form_reasons">  （%1$s）</string>
     <string name="entry_other_forms">其他写法：%1$s</string>
 
     <!-- Part-of-speech labels (JMdict codes) -->
-    <string name="pos_v1">一段動詞</string>
-    <string name="pos_v5">五段動詞</string>
-    <string name="pos_vk">カ変動詞</string>
-    <string name="pos_vs">サ変</string>
-    <string name="pos_vz">ザ変動詞</string>
-    <string name="pos_adj_i">形容詞</string>
-    <string name="pos_adj_na">形容動詞</string>
-    <string name="pos_n">名詞</string>
-    <string name="pos_adv">副詞</string>
-    <string name="pos_pn">代名詞</string>
-    <string name="pos_exp">連語</string>
-    <string name="pos_int">感動詞</string>
-    <string name="pos_conj">接続詞</string>
-    <string name="pos_prt">助詞</string>
-    <string name="pos_aux">助動詞</string>
-    <string name="pos_pref">接頭語</string>
-    <string name="pos_suf">接尾語</string>
-    <string name="pos_ctr">助数詞</string>
-    <string name="pos_adj_pn">連体詞</string>
+    <string name="pos_v1" translatable="false">一段動詞</string>
+    <string name="pos_v5" translatable="false">五段動詞</string>
+    <string name="pos_vk" translatable="false">カ変動詞</string>
+    <string name="pos_vs" translatable="false">サ変</string>
+    <string name="pos_vz" translatable="false">ザ変動詞</string>
+    <string name="pos_adj_i" translatable="false">形容詞</string>
+    <string name="pos_adj_na" translatable="false">形容動詞</string>
+    <string name="pos_n" translatable="false">名詞</string>
+    <string name="pos_adv" translatable="false">副詞</string>
+    <string name="pos_pn" translatable="false">代名詞</string>
+    <string name="pos_exp" translatable="false">連語</string>
+    <string name="pos_int" translatable="false">感動詞</string>
+    <string name="pos_conj" translatable="false">接続詞</string>
+    <string name="pos_prt" translatable="false">助詞</string>
+    <string name="pos_aux" translatable="false">助動詞</string>
+    <string name="pos_pref" translatable="false">接頭語</string>
+    <string name="pos_suf" translatable="false">接尾語</string>
+    <string name="pos_ctr" translatable="false">助数詞</string>
+    <string name="pos_adj_pn" translatable="false">連体詞</string>
 
     <!-- Favorites, history, export and backup (M4) -->
     <string name="favorites_unnamed">默认</string>
     <string name="favorites_title">收藏夹</string>
-    <string name="favorites_words">%1$d 个词</string>
+    <plurals name="favorites_words">
+        <item quantity="other">%1$d 个词</item>
+    </plurals>
     <string name="favorites_new">新建收藏夹</string>
     <string name="favorites_rename">重命名</string>
     <string name="favorites_edit_title">编辑收藏夹</string>
     <string name="favorites_edit_hint">按住右侧 ≡ 拖动调整顺序，点名称重命名</string>
     <string name="favorites_drag">拖动排序</string>
-    <string name="favorites_removed">已删除 %1$d 个词</string>
+    <plurals name="favorites_removed">
+        <item quantity="other">已删除 %1$d 个词</item>
+    </plurals>
     <string name="favorites_swipe_delete">删除</string>
     <string name="common_undo">撤销</string>
     <string name="favorites_delete">删除</string>
     <string name="favorites_delete_folder_title">删除「%1$s」？</string>
-    <string name="favorites_delete_folder_text">只删除这个收藏夹和其中的 %1$d 个收藏记录；这些词如果也在别的收藏夹里，那里的记录不受影响。</string>
+    <string name="favorites_delete_folder_text">只删除这个收藏夹及其中 %1$d 个词，别的收藏夹里的同一个词不受影响。</string>
     <string name="favorites_name_hint">收藏夹名称</string>
     <string name="favorites_name_taken">已有同名收藏夹</string>
     <string name="favorites_more">更多</string>
@@ -173,7 +184,7 @@
     <string name="favorites_sort_kana">按五十音</string>
     <string name="favorites_selected">已选 %1$d 个</string>
     <string name="favorites_select_all">全选</string>
-    <string name="favorites_move_to">移动到…</string>
+    <string name="favorites_move_to">移动到</string>
     <string name="favorites_move">移动</string>
     <string name="favorites_export">导出全部收藏</string>
     <string name="favorites_import">导入收藏</string>
@@ -186,12 +197,16 @@
     <string name="format_csv_utf8">CSV（UTF-8）</string>
     <string name="format_csv_utf8_desc">本 App 导出的文件，或其他软件存成 UTF-8 的 CSV</string>
     <string name="format_csv_ansi">CSV（ANSI）</string>
-    <string name="format_csv_ansi_desc">Windows 版 Excel 默认的「CSV（逗号分隔）」；自动识别简体中文（GBK）和日文（Shift-JIS）</string>
-    <string name="favorites_exported">已导出 %1$d 个词</string>
+    <string name="format_csv_ansi_desc">Windows 版 Excel 默认的 CSV，自动识别 GBK 和 Shift-JIS</string>
+    <plurals name="favorites_exported">
+        <item quantity="other">已导出 %1$d 个词</item>
+    </plurals>
     <string name="favorites_imported">已导入 %1$d 个词，跳过 %2$d 个已有的</string>
     <string name="favorites_import_failed">无法导入：文件里没有 headword（词头）一列</string>
     <string name="favorites_file_failed">无法读写这个文件</string>
-    <string name="favorites_moved">已移动 %1$d 个词到「%2$s」</string>
+    <plurals name="favorites_moved">
+        <item quantity="other">已移动 %1$d 个词到「%2$s」</item>
+    </plurals>
     <string name="favorites_added">已收藏到「%1$s」</string>
     <string name="favorites_change">更改</string>
     <string name="favorites_pick_title">收藏到</string>
@@ -200,22 +215,22 @@
     <string name="common_cancel">取消</string>
     <string name="common_ok">确定</string>
     <string name="common_delete">删除</string>
-    <string name="history_title">最近查过</string>
+    <string name="history_title">查词历史</string>
     <string name="history_clear">清空</string>
     <string name="history_clear_title">清空查词历史？</string>
     <string name="settings_backup">备份与恢复</string>
-    <string name="settings_backup_desc">备份收藏夹、收藏记录、查词历史和设置，不含辞书数据包。备份文件可以存到手机任意位置或云盘，换手机或重装后从这里恢复。</string>
+    <string name="settings_backup_desc">备份收藏、历史和设置（不含数据包），可存到任意位置或云盘。</string>
     <string name="settings_backup_now">备份</string>
     <string name="settings_restore">恢复</string>
     <string name="settings_restore_title">用这份备份替换现有数据？</string>
-    <string name="settings_restore_text">备份时间：%1$s\n收藏夹 %2$d 个，收藏记录 %3$d 条，查词历史 %4$d 条。\n\n现有的收藏、历史和设置会被替换。替换前会自动保存一份当前数据，之后可以在这里撤销。</string>
+    <string name="settings_restore_text">备份时间：%1$s\n收藏夹 %2$d 个，收藏 %3$d 条，历史 %4$d 条。\n\n将替换现有收藏、历史和设置。替换前会自动保存当前数据，可以撤销。</string>
     <string name="settings_restore_done">已恢复</string>
     <string name="settings_restore_failed">这不是本 App 的备份文件，或文件已损坏</string>
     <string name="settings_backup_done">已备份</string>
     <string name="settings_undo_restore">撤销恢复</string>
     <string name="settings_undo_restore_done">已撤销，数据回到恢复之前</string>
     <string name="settings_summary">一行释义</string>
-    <string name="settings_summary_desc">按上面的辞书顺序：日文取自第一本启用、收录了这个词的日日辞书，中文取自第一本这样的日中辞书。搜索候选里没勾选的那一种，只在同一写法有好几个词时显示，用来区分。</string>
+    <string name="settings_summary_desc">取上方顺序中第一本收录该词的辞书。搜索候选里未勾选的语言，只在区分同形词时显示。</string>
     <string name="settings_summary_ja">日文</string>
     <string name="settings_summary_zh">中文</string>
     <string name="settings_summary_search">搜索候选</string>

@@ -76,7 +76,19 @@ class SettingsViewModel(
     private val settings: SettingsRepository,
     private val repository: DictionaryList,
     private val appInfo: AppInfoSource,
+    private val appLanguage: AppLanguage? = null,
 ) : ViewModel() {
+    /** null when the system can't set a per-app language (before Android 13). */
+    val languageSupported: Boolean = appLanguage?.supported == true
+    private val _language = MutableStateFlow(appLanguage?.current())
+    /** The chosen interface language tag, or null to follow the system. */
+    val language: StateFlow<String?> = _language
+
+    fun setLanguage(tag: String?) {
+        _language.value = tag
+        appLanguage?.set(tag)
+    }
+
     val entryExpand: StateFlow<EntryExpand> = settings.entryExpand.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EntryExpand.First)
     val theme: StateFlow<ThemeMode> = settings.theme.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.System)
     val autoKeyboard: StateFlow<Boolean> = settings.autoKeyboard.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
@@ -141,8 +153,10 @@ fun SettingsScreen(
     val expand by viewModel.entryExpand.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val autoKeyboard by viewModel.autoKeyboard.collectAsStateWithLifecycle()
+    val language by viewModel.language.collectAsStateWithLifecycle()
     val info by viewModel.info.collectAsStateWithLifecycle()
-    val model by handwriting.state.map { it.model }.collectAsStateWithLifecycle(InkModelState.Checking)
+    val handwritingState by handwriting.state.collectAsStateWithLifecycle()
+    val model = handwritingState.model
     // Read on every visit, and again when the model is downloaded or deleted.
     LaunchedEffect(active, model) { if (active) viewModel.refreshInfo() }
     val dictionaries by viewModel.dictionaries.collectAsStateWithLifecycle()
@@ -188,6 +202,14 @@ fun SettingsScreen(
                 Choice(theme == ThemeMode.System, R.string.settings_theme_system) { viewModel.setTheme(ThemeMode.System) }
                 Choice(theme == ThemeMode.Light, R.string.settings_theme_light) { viewModel.setTheme(ThemeMode.Light) }
                 Choice(theme == ThemeMode.Dark, R.string.settings_theme_dark) { viewModel.setTheme(ThemeMode.Dark) }
+            }
+        }
+        if (viewModel.languageSupported) SettingCard(R.string.settings_language) {
+            Column(Modifier.selectableGroup()) {
+                Choice(language == null, R.string.settings_language_system) { viewModel.setLanguage(null) }
+                Choice(language == "zh-CN", R.string.settings_language_zh) { viewModel.setLanguage("zh-CN") }
+                Choice(language == "ja", R.string.settings_language_ja) { viewModel.setLanguage("ja") }
+                Choice(language == "en", R.string.settings_language_en) { viewModel.setLanguage("en") }
             }
         }
         SettingCard(R.string.settings_keyboard) {

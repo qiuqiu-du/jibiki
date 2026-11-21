@@ -28,6 +28,7 @@ import app.jisho.feature.settings.SettingsScreen
 import app.jisho.feature.settings.BackupViewModel
 import app.jisho.feature.settings.SettingsViewModel
 import app.jisho.feature.settings.AndroidAppInfoSource
+import app.jisho.feature.settings.AndroidAppLanguage
 import app.jisho.core.database.Inflection
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -179,7 +180,7 @@ fun AppNavHost(
                         nav.navigate(Routes.folder(id))
                     }
                     else -> SettingsScreen(
-                        appViewModel { SettingsViewModel(app.settings, app.repository, AndroidAppInfoSource(app, app.dataPacks)) },
+                        appViewModel { SettingsViewModel(app.settings, app.repository, AndroidAppInfoSource(app, app.dataPacks), AndroidAppLanguage(app)) },
                         appViewModel { BackupViewModel(app.backups) },
                         handwriting = handwriting(),
                         active = active,

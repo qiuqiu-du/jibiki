@@ -460,7 +460,7 @@ private fun BaseForms(forms: List<Candidate>, onOpen: (Candidate) -> Unit) {
                         Text("  " + c.reading, style = MaterialTheme.typography.bodyMedium.ja(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (reasons.isNotEmpty()) {
-                        Text("  （$reasons）", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.entry_base_form_reasons, reasons), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

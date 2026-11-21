@@ -23,6 +23,7 @@ import app.jisho.core.designsystem.rememberReorderState
 import app.jisho.core.designsystem.reorderable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.Role
@@ -54,6 +55,7 @@ import app.jisho.feature.search.InkModelMemory
 import app.jisho.feature.search.SearchScreen
 import app.jisho.feature.search.SearchViewModel
 import app.jisho.feature.settings.AppInfo
+import app.jisho.feature.settings.AppLanguage
 import app.jisho.feature.settings.BackupViewModel
 import app.jisho.feature.settings.PackInfo
 import app.jisho.feature.settings.SettingsScreen
@@ -169,10 +171,18 @@ class DeviceUiTest {
         override suspend fun remember(ready: Boolean) {}
     })
 
+    /** Records the language chosen in settings instead of changing the app's real language. */
+    private class FakeLanguage : AppLanguage {
+        var tag: String? = null
+        override val supported = true
+        override fun current() = tag
+        override fun set(tag: String?) { this.tag = tag }
+    }
+
     /** The settings page as the app shows it, on [settings]; the model counts as downloaded. */
-    private fun showSettings(settings: SettingsRepository) {
+    private fun showSettings(settings: SettingsRepository, language: AppLanguage = FakeLanguage()) {
         val info = AppInfo("test", listOf(PackInfo(null, "2026-11-21", 32_000_000), PackInfo("デジタル大辞泉", "2026-11-21", 46_000_000)), 25_000_000, 500_000)
-        val viewModel = SettingsViewModel(settings, app.repository) { info }
+        val viewModel = SettingsViewModel(settings, app.repository, { info }, language)
         val backup = BackupViewModel(BackupManager(app, app.userStore, settings))
         rule.setContent { JishoTheme { SettingsScreen(viewModel, backup, handwriting(), active = true) {} } }
         rule.waitForIdle()
@@ -180,14 +190,17 @@ class DeviceUiTest {
 
     @Test fun settingsChoicesAreStored() = runBlocking {
         val settings = scratchSettings()
-        showSettings(settings)
+        val language = FakeLanguage()
+        showSettings(settings, language)
         rule.onNodeWithText(text(R.string.settings_entry_expand_none)).performScrollTo().performClick()
+        rule.onNodeWithText(text(R.string.settings_language_ja)).performScrollTo().performClick()
         rule.onNodeWithText(text(R.string.settings_theme_dark)).performScrollTo().performClick()
         rule.onNodeWithText(text(R.string.settings_auto_keyboard)).performScrollTo().performClick()
         rule.waitForIdle()
         assertEquals(EntryExpand.None, settings.entryExpand.first())
         assertEquals(ThemeMode.Dark, settings.theme.first())
         assertEquals(false, settings.autoKeyboard.first())
+        assertEquals("ja", language.tag)
     }
 
     /** Every button's label is on one line and not cut off (no "…", no wrapping). */
@@ -230,7 +243,8 @@ class DeviceUiTest {
         rule.setContent {
             JishoTheme {
                 key(expand) {
-                    EntryScreen(EntryViewModel(app.repository, EntryTarget.Core(id), user = null, expandSetting = flowOf(expand)), {}, { _, _ -> }, {}, {})
+                    val viewModel = remember(expand) { EntryViewModel(app.repository, EntryTarget.Core(id), user = null, expandSetting = flowOf(expand)) }
+                    EntryScreen(viewModel, {}, { _, _ -> }, {}, {})
                 }
             }
         }
@@ -247,8 +261,9 @@ class DeviceUiTest {
         rule.setContent {
             JishoTheme {
                 key(auto) {
+                    val viewModel = remember(auto) { SearchViewModel(app.repository, debounceMs = 0, autoKeyboardSetting = flowOf(auto)) }
                     SearchScreen(
-                        SearchViewModel(app.repository, debounceMs = 0, autoKeyboardSetting = flowOf(auto)),
+                        viewModel,
                         handwriting(), onOpenEntry = {}, onOpenDictEntry = { _, _ -> }, onLookup = {},
                     )
                 }

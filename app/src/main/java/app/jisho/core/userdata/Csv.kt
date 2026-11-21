@@ -18,7 +18,7 @@ object Csv {
         var row = mutableListOf<String>()
         val cell = StringBuilder()
         var quoted = false
-        var i = if (text.startsWith('﻿')) 1 else 0
+        var i = if (text.startsWith('\uFEFF')) 1 else 0
         fun endCell() { row += cell.toString(); cell.clear() }
         fun endRow() {
             endCell()
