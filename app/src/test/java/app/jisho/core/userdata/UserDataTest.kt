@@ -77,6 +77,31 @@ class UserDataTest {
         assertEquals(null, s.lookupReading("食べる"))
     }
 
+    /** Pitch marks other apps put after a reading are dropped on import and from rows saved earlier. */
+    @Test fun readingsLoseTheirPitchMarks() = runBlocking {
+        assertEquals("おなに", UserStore.cleanReading("おなに ⓪"))
+        assertEquals("くんに", UserStore.cleanReading("くんに①"))
+        assertEquals("〜ようが・〜ようと（も）", UserStore.cleanReading("〜ようが・〜ようと（も）"))
+        val db = JdbcWritableDb()
+        val s = store(db)
+        val a = s.createFolder("A")
+        assertEquals(1, s.importFavorites(listOf("A" to Favorite(0, WordRef("クンニ", "くんに ①", "core:2068460"), 5))))
+        assertEquals(listOf("くんに"), s.favorites(a).map { it.word.reading })
+        // A backup from before the rule: cleaned as it is restored; a duplicate of a clean row goes.
+        val old = s.dump().let { d ->
+            d.copy(
+                favorites = d.favorites + listOf(
+                    Favorite(a, WordRef("オナニ", "おなに ⓪", "core:1034490"), 7),
+                    Favorite(a, WordRef("クンニ", "くんに ①", "core:2068460"), 6),
+                ),
+                history = listOf(HistoryItem(WordRef("オナニ", "おなに ⓪", "core:1034490"), 8)),
+            )
+        }
+        s.replaceAll(old)
+        assertEquals(listOf("おなに" to 7L, "くんに" to 5L), s.favorites(a).map { it.word.reading to it.added })
+        assertEquals(listOf("おなに"), s.history().map { it.word.reading })
+    }
+
     @Test fun foldersKeepTheirOrderAndCounts() = runBlocking {
         val s = store()
         val a = s.createFolder("A")

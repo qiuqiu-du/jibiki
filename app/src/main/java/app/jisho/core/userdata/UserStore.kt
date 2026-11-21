@@ -193,7 +193,8 @@ class UserStore(
     suspend fun importFavorites(items: List<Pair<String, Favorite>>): Int = write {
         val byName = db.query("SELECT id, name FROM folder") { it.string(1) to it.long(0) }.toMap().toMutableMap()
         var added = 0
-        items.forEach { (folderName, fav) ->
+        items.forEach { (folderName, item) ->
+            val fav = item.copy(word = item.word.copy(reading = cleanReading(item.word.reading)))
             val name = folderName.ifEmpty { unnamed }
             val folder = byName.getOrPut(name) { insertFolder(name) }
             val exists = db.query(
@@ -256,17 +257,25 @@ class UserStore(
             db.exec("INSERT INTO folder (id, name, ord, created) VALUES (?, ?, ?, ?)", listOf(f.id, f.name, ord, now()))
         }
         nameUnnamed()
-        data.favorites.forEach { insertFavorite(it.folderId, it.word, it.added) }
+        // Readings are cleaned as they come in (an old backup may carry pitch marks).
+        data.favorites.forEach { insertFavorite(it.folderId, it.word.copy(reading = cleanReading(it.word.reading)), it.added) }
         data.history.forEach {
             db.exec(
                 "INSERT OR REPLACE INTO history (headword, reading, target, viewed) VALUES (?, ?, ?, ?)",
-                listOf(it.word.headword, it.word.reading, it.word.target, it.viewed),
+                listOf(it.word.headword, cleanReading(it.word.reading), it.word.target, it.viewed),
             )
         }
     }
 
     companion object {
         const val HISTORY_LIMIT = 500
+
+        /** Circled numbers: pitch accents other apps write after a reading (MOJi: 「おなに ⓪」). */
+        private val PITCH_MARK = Regex("[\u24EA\u2460-\u2473\u24F5-\u24FE\u3251-\u325F\u32B1-\u32BF]")
+
+        /** A reading as the app keeps it: no pitch marks, single spaces, trimmed. */
+        fun cleanReading(reading: String): String =
+            reading.replace(PITCH_MARK, " ").replace(Regex("\\s+"), " ").trim()
         const val SCHEMA_VERSION = 1
 
         private val SCHEMA = listOf(
