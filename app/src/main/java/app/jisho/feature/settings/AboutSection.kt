@@ -47,6 +47,15 @@ internal fun AboutSection(info: AppInfo, model: InkModelState, onDeleteModel: ()
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            // What the core index is made of (comes with the app; open data, credited here).
+            if (p.title == null) {
+                Text(
+                    stringResource(R.string.settings_open_data),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = CARD_INSET, end = CARD_INSET, bottom = 4.dp),
+                )
+            }
         }
     }
 
@@ -75,7 +84,6 @@ internal fun AboutSection(info: AppInfo, model: InkModelState, onDeleteModel: ()
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(stringResource(R.string.settings_version, info.version), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(stringResource(R.string.settings_open_data), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 

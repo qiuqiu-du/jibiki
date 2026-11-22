@@ -106,10 +106,13 @@ class SettingsViewModel(
     val lemmatizerMode: StateFlow<LemmatizerMode?> =
         settings.lemmatizerMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Imported dictionaries in the user's order; refreshed whenever the setting changes. */
-    val dictionaries: StateFlow<List<DictStatus>> = settings.dictPrefs
+    /**
+     * Imported dictionaries in the user's order; refreshed whenever the setting changes. Null
+     * until read, so "none imported yet" doesn't flash up before the list.
+     */
+    val dictionaries: StateFlow<List<DictStatus>?> = settings.dictPrefs
         .map { repository.dictionaries(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setLemmatizerMode(mode: LemmatizerMode) = viewModelScope.launch { settings.setLemmatizerMode(mode) }
 
@@ -173,17 +176,22 @@ fun SettingsScreen(
         // Three groups (design-spec 5): dictionaries and what is shown from them; app-wide
         // settings; the user's data and read-only information. Each setting is one card.
         GroupTitle(R.string.settings_group_dictionaries)
-        SettingCard(R.string.settings_dictionaries, R.string.settings_dictionaries_desc) {
-            dictionaries.forEachIndexed { i, d ->
+        // Only the APK installed (no dictionary packs): say what the card is for and offer the import.
+        val none = dictionaries?.isEmpty() == true
+        SettingCard(R.string.settings_dictionaries, if (none) R.string.settings_dictionaries_none else R.string.settings_dictionaries_desc) {
+            val list = dictionaries.orEmpty()
+            list.forEachIndexed { i, d ->
                 DictionaryRow(
                     d,
                     canMoveUp = i > 0,
-                    canMoveDown = i < dictionaries.lastIndex,
+                    canMoveDown = i < list.lastIndex,
                     onMove = { delta -> viewModel.move(i, delta) },
                     onEnabled = { viewModel.setEnabled(d.info.id, it) },
                 )
             }
-            CardButtons { FilledTonalButton(onClick = onReimport) { Text(stringResource(R.string.settings_reimport)) } }
+            CardButtons {
+                FilledTonalButton(onClick = onReimport) { Text(stringResource(if (none) R.string.settings_import else R.string.settings_reimport)) }
+            }
         }
         SettingCard(R.string.settings_entry_expand) {
             Column(Modifier.selectableGroup()) {

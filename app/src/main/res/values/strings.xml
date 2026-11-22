@@ -82,8 +82,8 @@
     <string name="nav_settings">设置</string>
     <string name="settings_title">设置</string>
     <string name="settings_lemmatizer">分词与变形还原</string>
-    <string name="settings_lemmatizer_kuromoji">Kuromoji（默认）</string>
-    <string name="settings_lemmatizer_kuromoji_desc">可拆分整句，并附带规则表的全部候选。后台加载约 0.3 秒，占内存约 70 MB。</string>
+    <string name="settings_lemmatizer_kuromoji">Kuromoji 分词器（默认）</string>
+    <string name="settings_lemmatizer_kuromoji_desc">按词典切分，能拆开整句和词组；同时列出规则表的候选。</string>
     <string name="settings_lemmatizer_rules">活用规则表</string>
     <string name="settings_dictionaries">顺序与开关</string>
     <string name="settings_group_dictionaries">辞书与释义</string>
@@ -107,7 +107,7 @@
     <string name="settings_keyboard">键盘</string>
     <string name="settings_auto_keyboard">自动弹出</string>
     <string name="settings_auto_keyboard_desc">打开 App 或从词条页返回时弹出。</string>
-    <string name="settings_core_pack">核心索引</string>
+    <string name="settings_core_pack">核心索引（内置）</string>
     <string name="settings_pack_line" translatable="false">%1$s · %2$s</string>
     <string name="settings_handwriting">手写模型</string>
     <string name="settings_handwriting_ready">已下载，占用 %1$s。</string>
@@ -117,13 +117,15 @@
     <string name="settings_handwriting_delete_text">释放 %1$s。再用手写需重新下载。</string>
     <string name="settings_storage">存储与版本</string>
     <string name="settings_storage_total">共占用 %1$s：数据包 %2$s、手写模型 %3$s、收藏与历史 %4$s</string>
-    <string name="settings_open_data">内置数据：JMdict（EDRDG）、Kanjium、Jiten 词频（CC BY-SA 4.0）</string>
+    <string name="settings_open_data">JMdict 词条、Kanjium 音调、Jiten 词频（JMdict © EDRDG，CC BY-SA 4.0）</string>
     <string name="settings_version">版本 %1$s</string>
     <string name="settings_dictionaries_desc">词条页按此顺序显示；关闭的辞书不显示、不参与搜索。</string>
     <string name="settings_move_up">上移</string>
     <string name="settings_move_down">下移</string>
+    <string name="settings_dictionaries_none">还没有导入辞书。导入数据包后，可在这里调整辞书的顺序和开关。</string>
+    <string name="settings_import">导入数据包</string>
     <string name="settings_reimport">重新导入数据包</string>
-    <string name="settings_lemmatizer_rules_desc">只处理单个词，列出歧义词的全部原形；不占内存。</string>
+    <string name="settings_lemmatizer_rules_desc">按活用规则倒推原形，只处理单个词；有歧义时列出所有可能的原形。</string>
 
     <!-- Entry -->
     <string name="entry_back">返回</string>
@@ -221,7 +223,7 @@
     <string name="history_clear">清空</string>
     <string name="history_clear_title">清空查词历史？</string>
     <string name="settings_backup">备份与恢复</string>
-    <string name="settings_backup_desc">备份收藏、历史和设置（不含数据包），可存到任意位置或云盘。</string>
+    <string name="settings_backup_desc">备份收藏、历史和设置（不含数据包），换机或重装后可从备份恢复。</string>
     <string name="settings_backup_now">备份</string>
     <string name="settings_restore">恢复</string>
     <string name="settings_restore_title">用这份备份替换现有数据？</string>

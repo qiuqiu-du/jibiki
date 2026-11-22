@@ -34,8 +34,8 @@
     <string name="nav_settings">Settings</string>
     <string name="settings_title">Settings</string>
     <string name="settings_lemmatizer">Word splitting and dictionary forms</string>
-    <string name="settings_lemmatizer_kuromoji">Kuromoji (default)</string>
-    <string name="settings_lemmatizer_kuromoji_desc">Splits sentences into words and adds all rule-based candidates. Loads in the background (about 0.3 s); uses about 70 MB of memory.</string>
+    <string name="settings_lemmatizer_kuromoji">Kuromoji tokenizer (default)</string>
+    <string name="settings_lemmatizer_kuromoji_desc">Splits text with its own dictionary, so whole sentences and phrases work; also adds candidates from the conjugation rules.</string>
     <string name="settings_lemmatizer_rules">Conjugation rules</string>
     <string name="settings_dictionaries">Order and on/off</string>
     <string name="settings_group_dictionaries">Dictionaries and definitions</string>
@@ -55,7 +55,7 @@
     <string name="settings_keyboard">Keyboard</string>
     <string name="settings_auto_keyboard">Show automatically</string>
     <string name="settings_auto_keyboard_desc">On launch and when returning from a word page.</string>
-    <string name="settings_core_pack">Core index</string>
+    <string name="settings_core_pack">Core index (built in)</string>
     <string name="settings_handwriting">Handwriting model</string>
     <string name="settings_handwriting_ready">Downloaded (%1$s).</string>
     <string name="settings_handwriting_missing">Not downloaded. Download it from the handwriting panel (about 20 MB, needs internet).</string>
@@ -64,13 +64,15 @@
     <string name="settings_handwriting_delete_text">Frees %1$s. You’ll need to download it again to use handwriting.</string>
     <string name="settings_storage">Storage and version</string>
     <string name="settings_storage_total">%1$s in total: data packs %2$s, handwriting model %3$s, favorites and history %4$s</string>
-    <string name="settings_open_data">Built-in data: JMdict (EDRDG), Kanjium and Jiten word frequency, CC BY-SA 4.0</string>
+    <string name="settings_open_data">JMdict entries, Kanjium pitch accents, Jiten word frequency (JMdict © EDRDG, CC BY-SA 4.0)</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_dictionaries_desc">Word pages follow this order. Dictionaries turned off are hidden and not searched.</string>
     <string name="settings_move_up">Move up</string>
     <string name="settings_move_down">Move down</string>
+    <string name="settings_dictionaries_none">No dictionaries yet. Import data packs to set their order and turn them on or off here.</string>
+    <string name="settings_import">Import data packs</string>
     <string name="settings_reimport">Re-import data packs</string>
-    <string name="settings_lemmatizer_rules_desc">Single words only; lists every dictionary form of ambiguous ones. No extra memory.</string>
+    <string name="settings_lemmatizer_rules_desc">Works back to the dictionary form by conjugation rules. Single words only; lists every possible form of ambiguous ones.</string>
     <string name="entry_back">Back</string>
     <string name="entry_favorite">Add to favorites</string>
     <string name="entry_no_definition">The offline dictionaries have no definition for this word</string>
@@ -145,7 +147,7 @@
     <string name="history_clear">Clear</string>
     <string name="history_clear_title">Clear search history?</string>
     <string name="settings_backup">Backup and restore</string>
-    <string name="settings_backup_desc">Saves favorites, history and settings (not the data packs) to any folder or cloud storage.</string>
+    <string name="settings_backup_desc">Saves favorites, history and settings (not the data packs), to restore on a new phone or after reinstalling.</string>
     <string name="settings_backup_now">Back up</string>
     <string name="settings_restore">Restore</string>
     <string name="settings_restore_title">Replace current data with this backup?</string>
