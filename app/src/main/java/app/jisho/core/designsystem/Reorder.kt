@@ -42,7 +42,10 @@ class ReorderState internal constructor(
     private var travel = 0f
     private var heading = 0f
 
-    fun start(key: Any) { dragging = key; offset = 0f; travel = 0f; heading = 0f }
+    /** The edge the list is scrolling toward (-1 top, 1 bottom, 0 none). */
+    private var scrolling = 0
+
+    fun start(key: Any) { dragging = key; offset = 0f; travel = 0f; heading = 0f; scrolling = 0 }
 
     fun drag(dy: Float) {
         offset += dy; travel += kotlin.math.abs(dy)
@@ -50,8 +53,12 @@ class ReorderState internal constructor(
         swapIfOver()
     }
 
-    fun end() {
-        if (dragging == null) return
+    /**
+     * [key]: the row whose gesture ended. Another row's can't end this drag: a row scrolled out of
+     * sight has its gesture detector cancelled, which reports a cancel even though it wasn't dragging.
+     */
+    fun end(key: Any) {
+        if (dragging != key) return
         dragging = null; offset = 0f
         onDone()
     }
@@ -80,9 +87,10 @@ class ReorderState internal constructor(
     }
 
     /**
-     * Scroll speed (px per frame) while the dragged row is near an edge; 0 elsewhere. Only once the
-     * finger has moved toward that edge: a row picked up at the edge would otherwise start the list
-     * scrolling under a still finger.
+     * Scroll speed (px per frame) while the dragged row is near an edge; 0 elsewhere. Starts only
+     * once the finger has moved toward that edge (a row picked up at the edge would otherwise start
+     * the list scrolling under a still finger), then goes on while the row stays there: a finger
+     * held at the edge trembles, and a tremble back must not stop it.
      */
     internal fun edgeSpeed(): Float {
         val info = list.layoutInfo
@@ -90,12 +98,16 @@ class ReorderState internal constructor(
         val top = cur.offset + offset
         val bottom = top + cur.size
         val zone = cur.size * 0.75f
-        if (travel < cur.size * 0.25f) return 0f
-        return when {
-            heading < 0 && top < info.viewportStartOffset + zone -> -EDGE_SPEED
-            heading > 0 && bottom > info.viewportEndOffset - zone -> EDGE_SPEED
-            else -> 0f
+        val atTop = top < info.viewportStartOffset + zone
+        val atBottom = bottom > info.viewportEndOffset - zone
+        scrolling = when {
+            scrolling == -1 && atTop || scrolling == 1 && atBottom -> scrolling
+            travel < cur.size * 0.25f -> 0
+            heading < 0 && atTop -> -1
+            heading > 0 && atBottom -> 1
+            else -> 0
         }
+        return scrolling * EDGE_SPEED
     }
 
     internal suspend fun scrollStep(speed: Float) {
@@ -138,8 +150,8 @@ fun Modifier.dragHandle(state: ReorderState, key: Any): Modifier = pointerInput(
     detectDragGestures(
         onDragStart = { state.start(key) },
         onDrag = { change, amount -> change.consume(); state.drag(amount.y) },
-        onDragEnd = { state.end() },
-        onDragCancel = { state.end() },
+        onDragEnd = { state.end(key) },
+        onDragCancel = { state.end(key) },
     )
 }
 
@@ -148,7 +160,7 @@ fun Modifier.longPressDrag(state: ReorderState, key: Any): Modifier = pointerInp
     detectDragGesturesAfterLongPress(
         onDragStart = { state.start(key) },
         onDrag = { change, amount -> change.consume(); state.drag(amount.y) },
-        onDragEnd = { state.end() },
-        onDragCancel = { state.end() },
+        onDragEnd = { state.end(key) },
+        onDragCancel = { state.end(key) },
     )
 }

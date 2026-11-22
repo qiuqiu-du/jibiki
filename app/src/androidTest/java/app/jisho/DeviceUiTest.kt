@@ -102,15 +102,21 @@ class DeviceUiTest {
         }
     }
 
-    /** Holds [row] (long press), moves it by [dy] px in steps, waits [holdMs] there, then lifts. */
-    private fun drag(row: Int, dy: Float, holdMs: Long = 0) {
+    /**
+     * Holds [row] (long press), moves it by [dy] px in steps, waits [holdMs] there, then lifts.
+     * [jitter]: while waiting, the finger trembles by that many px up and down, as a real one does.
+     */
+    private fun drag(row: Int, dy: Float, holdMs: Long = 0, jitter: Float = 0f) {
         rule.onNodeWithTag("row$row").performTouchInput {
             down(center)
             advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
             val steps = 20
             repeat(steps) { moveBy(androidx.compose.ui.geometry.Offset(0f, dy / steps), delayMillis = 16) }
             var t = 0L
-            while (t < holdMs) { moveBy(androidx.compose.ui.geometry.Offset.Zero, delayMillis = 16); t += 16 }
+            var sign = 1
+            while (t < holdMs) {
+                moveBy(androidx.compose.ui.geometry.Offset(0f, jitter * sign), delayMillis = 16); t += 16; sign = -sign
+            }
             up()
         }
         rule.waitForIdle()
@@ -155,6 +161,24 @@ class DeviceUiTest {
         assertEquals(row, order.first())
     }
 
+    /**
+     * A finger held at the edge is never still: a tremble back must not stop the scrolling. The
+     * second drag also scrolls the first dragged row out of sight, whose cancelled gesture
+     * detector must not end the drag (it once did, mid-scroll).
+     */
+    @Test fun aTremblingFingerAtAnEdgeKeepsScrolling() {
+        show(firstVisible = 10)
+        rule.waitForIdle()
+        val px = with(rule.density) { 64.dp.toPx() }
+        val up = order[12]
+        drag(up, -2.2f * px, holdMs = 3000, jitter = 2f)
+        assertEquals(0, list.firstVisibleItemIndex)
+        assertEquals(up, order.first())
+        val down = order[3]
+        drag(down, 2.2f * px, holdMs = 9000, jitter = 2f)
+        assertEquals(down, order.last())
+    }
+
     // --- Settings (design-spec 5): choices are stored, labels fit, and the app follows them. ---
     // Settings go to a scratch DataStore; packs are only read; no backup or model is touched.
 
@@ -180,9 +204,13 @@ class DeviceUiTest {
     }
 
     /** The settings page as the app shows it, on [settings]; the model counts as downloaded. */
-    private fun showSettings(settings: SettingsRepository, language: AppLanguage = FakeLanguage()) {
+    private fun showSettings(
+        settings: SettingsRepository,
+        language: AppLanguage = FakeLanguage(),
+        dictionaries: app.jisho.core.data.DictionaryList = app.repository,
+    ) {
         val info = AppInfo("test", listOf(PackInfo(null, "2026-11-21", 32_000_000), PackInfo("デジタル大辞泉", "2026-11-21", 46_000_000)), 25_000_000, 500_000)
-        val viewModel = SettingsViewModel(settings, app.repository, { info }, language)
+        val viewModel = SettingsViewModel(settings, dictionaries, { info }, language)
         val backup = BackupViewModel(BackupManager(app, app.userStore, settings))
         rule.setContent { JishoTheme { SettingsScreen(viewModel, backup, handwriting(), active = true) {} } }
         rule.waitForIdle()
@@ -224,6 +252,20 @@ class DeviceUiTest {
             // A trailing "…" reads as cut-off text on a short button, so labels never end with one.
             assertFalse("$label ends with …", label.endsWith("…") || label.endsWith("..."))
         }
+    }
+
+    /** Only the APK installed: the dictionary card says none are imported and offers the import. */
+    @Test fun settingsWithoutDictionariesOfferTheImport() {
+        showSettings(scratchSettings(), dictionaries = object : app.jisho.core.data.DictionaryList {
+            override suspend fun dictionaries(prefs: app.jisho.core.data.DictPrefs) = emptyList<app.jisho.core.data.DictStatus>()
+        })
+        rule.onNodeWithText(text(R.string.settings_dictionaries_none)).assertExists()
+        rule.onNodeWithText(text(R.string.settings_import)).assertExists()
+        assertTrue(rule.onAllNodesWithText(text(R.string.settings_reimport)).fetchSemanticsNodes().isEmpty())
+        val label = rule.onNodeWithText(text(R.string.settings_import), useUnmergedTree = true).fetchSemanticsNode()
+        val layouts = mutableListOf<TextLayoutResult>()
+        label.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts)
+        assertEquals(1, layouts.single().lineCount)
     }
 
     /** Entry page: the default-expand setting decides which dictionaries show their entries. */
