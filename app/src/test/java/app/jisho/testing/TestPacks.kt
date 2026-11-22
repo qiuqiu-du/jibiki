@@ -69,6 +69,16 @@ object TestPacks {
 
     fun assumePresent() = assumeTrue("data packs not generated (run tools/build_*.py)", bundledCore.exists())
 
+    /**
+     * For tests about dictionaries: every dictionary pack and the NHK pitch pack are there. CI
+     * (.github/workflows/release.yml) has only the open-data core.db, so these tests are skipped there.
+     */
+    fun assumeDictionaries() {
+        assumePresent()
+        val missing = (dictionaryIds.map { "dict_$it.db" } + "pitch_nhk2016.db").filterNot { File(dir, it).exists() }
+        assumeTrue("dictionary packs missing: $missing (run scripts/deploy.sh data)", missing.isEmpty())
+    }
+
     fun core(usuallyKanaMask: Int = 1) = CoreDb(JdbcSqlDb(coreFile), usuallyKanaMask)
 
     fun dict(id: String) = DictDb(JdbcSqlDb(File(dir, "dict_$id.db")), id)

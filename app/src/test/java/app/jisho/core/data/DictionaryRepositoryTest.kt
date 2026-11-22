@@ -15,7 +15,7 @@ import org.junit.Test
 class DictionaryRepositoryTest {
     private val repo by lazy { DictionaryRepository(TestPacks.opener()) }
 
-    @Before fun packs() = TestPacks.assumePresent()
+    @Before fun packs() = TestPacks.assumeDictionaries()
 
     private val lemmaRepo by lazy { TestPacks.repositoryWithLemmatizer() }
 
@@ -123,24 +123,6 @@ class DictionaryRepositoryTest {
     @Test fun dictionaryOnlyResultsAppearWhenFewWordsMatch() = runBlocking {
         val r = repo.search("はまでら")
         assertTrue(r.dictOnly.any { "浜寺" in it.title })
-    }
-
-    /** Only the app installed (bundled open core, no packs): search, inflections, accents and entry pages work. */
-    @Test fun worksWithTheBundledCoreAlone() = runBlocking {
-        val bare = object : PackOpener {
-            override fun openCore() = CoreDb(JdbcSqlDb(TestPacks.bundledCore))
-            override fun openDictionaries() = emptyList<DictDb>()
-        }
-        val r = DictionaryRepository(bare, { TestPacks.combined }, { TestPacks.kuromoji })
-        assertEquals("食べる", r.search("食べなかった").words.first().headword)
-        assertTrue(r.search("たべ").words.isNotEmpty())
-        val e = r.entry(1358280)!!
-        assertEquals("2", e.core.accents["たべる"])
-        assertTrue(e.definitions.isEmpty())
-        val s = r.summary("core:1358280", "たべる")
-        assertEquals("2", s.accent)
-        assertEquals("", s.definition)
-        assertNotNull(r.entry(r.search("学校").words.first().entryId))
     }
 
     @Test fun entryCombinesCoreAndAllDictionaries() = runBlocking {

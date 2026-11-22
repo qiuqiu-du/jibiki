@@ -13,7 +13,7 @@ import org.junit.Test
  * choose are not looked up; exports use every installed dictionary.
  */
 class SummaryTest {
-    @Before fun packs() = TestPacks.assumePresent()
+    @Before fun packs() = TestPacks.assumeDictionaries()
 
     private val tema = "core:1327410" // 手間
     private val jc = "shogakukan_jc3"

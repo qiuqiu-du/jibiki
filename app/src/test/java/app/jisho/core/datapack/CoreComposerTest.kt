@@ -93,8 +93,7 @@ class CoreComposerTest {
 
     /** NHK wins over 新明解 and 大辞林; Kanjium only fills gaps; 新明解's ＊＊ words rank higher. */
     @Test fun higherPriorityWinsAndScoresImprove() {
-        TestPacks.assumePresent()
-        assertTrue(File(TestPacks.dir, "pitch_nhk2016.db").exists())
+        TestPacks.assumeDictionaries()
         JdbcSqlDb(TestPacks.coreFile).use { db ->
             val sources = db.query("SELECT source, count(*) FROM pitch GROUP BY source") { it.string(0) to it.long(1) }.toMap()
             println("composed pitch rows by source: $sources")

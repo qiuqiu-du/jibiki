@@ -65,6 +65,7 @@ class FeatureViewModelTest {
     }
 
     @Test fun coreEntryShowsOnlyDictionariesWithDefinitions() {
+        TestPacks.assumeDictionaries()
         val s = page(EntryTarget.Core(1358280))
         assertEquals("食べる", s.head!!.headword)
         assertTrue(s.sections.isNotEmpty() && s.sections.all { it.second.isNotEmpty() })
@@ -76,6 +77,7 @@ class FeatureViewModelTest {
     }
 
     @Test fun lookupFallsBackToDictionaryOnlyEntries() {
+        TestPacks.assumeDictionaries()
         val s = page(EntryTarget.Lookup("はまでら"))
         assertEquals(null, s.head) // the item's title heads its section
         assertTrue(s.word.target.startsWith("dict:"))

@@ -10,7 +10,7 @@ import org.junit.Test
 class DictDbTest {
     private val dicts get() = TestPacks.sharedDicts
 
-    @Before fun packs() = TestPacks.assumePresent()
+    @Before fun packs() = TestPacks.assumeDictionaries()
 
     @Test
     fun allThreeDictionariesPresentWithCurrentFormats() {
