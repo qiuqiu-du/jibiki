@@ -161,7 +161,8 @@ fun WebPage(tab: EntryTab, query: List<String>, web: WebViews, open: Boolean, mo
     }
     val background = MaterialTheme.colorScheme.surface.toArgb()
     val cleanup = AdBlock.cleanupScript(tab.clutter)
-    // The search page keeps its own search box (it asks for a tap on 検索): ads hidden only.
+    // The search page keeps its own search box (it asks for a tap on 検索): ads hidden only;
+    // also a last "not found" page.
     val searchCleanup = AdBlock.cleanupScript()
     val fallback = tab.fallback?.invoke(query.first())
     val view = web.views.getOrPut(tab) {
@@ -185,17 +186,27 @@ fun WebPage(tab: EntryTab, query: List<String>, web: WebViews, open: Boolean, mo
             if (android.os.Build.VERSION.SDK_INT >= 33) settings.isAlgorithmicDarkeningAllowed = true
             webViewClient = object : WebViewClient() { // keeps links inside the tab
                 private var attempt = 0
+                /** "Not found" pages skipped for the next spelling: never shown. */
                 private val missing = HashSet<String>()
+                /**
+                 * "Not found" pages with nothing left to try (Weblio has no search page to fall
+                 * back to): shown like a search page, since they list near words (おかずにする ->
+                 * おかず) and keep the site's search box. Hiding them left the tab blank.
+                 */
+                private val lastTry = HashSet<String>()
 
                 override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
                     if (!request.isForMainFrame || response.statusCode != 404) return
                     val url = request.url.toString()
                     if (url == fallback) return
+                    val next = query.getOrNull(attempt + 1)?.let { tab.url!!(it) } ?: fallback
+                    if (next == null) { lastTry += url; return }
                     missing += url
                     attempt++
-                    val next = query.getOrNull(attempt)?.let { tab.url!!(it) } ?: fallback ?: return
                     view.loadUrl(next)
                 }
+
+                private fun cleanupFor(url: String?) = if (url == fallback || url in lastTry) searchCleanup else cleanup
 
                 // Ads (AdBlock): requests to ad hosts get an empty answer...
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
@@ -208,13 +219,13 @@ fun WebPage(tab: EntryTab, query: List<String>, web: WebViews, open: Boolean, mo
                 // ...and leftover slots and dialogs are hidden as soon as the page shows.
                 override fun onPageCommitVisible(view: WebView, url: String?) {
                     if (url in missing) return // a "not found" page: the next spelling is on its way
-                    view.evaluateJavascript(if (url == fallback) searchCleanup else cleanup, null)
+                    view.evaluateJavascript(cleanupFor(url), null)
                     if (view.alpha < 1f) view.animate().alpha(1f).setDuration(150).start()
                 }
 
                 override fun onPageFinished(view: WebView, url: String?) {
                     if (url in missing) return
-                    view.evaluateJavascript(if (url == fallback) searchCleanup else cleanup, null)
+                    view.evaluateJavascript(cleanupFor(url), null)
                 }
             }
             loadUrl(tab.url!!(query.first()))
