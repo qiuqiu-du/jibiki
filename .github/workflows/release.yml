@@ -1,0 +1,101 @@
+# Builds the release APK and publishes it (docs/release.md).
+# - Push a tag v<version> (git tag v0.2.0 && git push origin v0.2.0): build, test, publish a release.
+# - Run it by hand (Actions > Release > Run workflow): build and test only; the APK is kept as
+#   the run's artifact.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # The key every build is signed with: the maintainer's debug key (secret
+      # DEBUG_KEYSTORE_BASE64). Installed apps only take updates signed with the same key.
+      CERT_SHA256: 57f4a09101e53f5bfc02fec7162c4f5df826fba16241e653e2ee18373432ed87
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # versionCode is the commit count; notes list commits since the last tag
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Android SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+
+      # Before any Gradle run: Gradle would otherwise make a new debug key of its own.
+      - name: Signing key
+        run: |
+          mkdir -p ~/.android
+          printf '%s' "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
+          test -s ~/.android/debug.keystore || { echo "secret DEBUG_KEYSTORE_BASE64 is missing"; exit 1; }
+
+      # The same open data as the maintainer's computer (release data-sources), so the built-in
+      # core.db is the one the tests ran on; jiten.moe refuses scripts anyway.
+      - name: Open data
+        run: |
+          gh release download data-sources -p JMdict_e.gz -D sources/jmdict
+          gh release download data-sources -p accents.txt -D sources/kanjium
+          gh release download data-sources -p frequency_list_global.csv -D sources/jiten
+
+      - name: Core index
+        run: |
+          python -m venv tools/.venv
+          tools/.venv/bin/pip install -q zstandard==0.25.0
+          tools/.venv/bin/python tools/build_core.py
+
+      # No dictionary packs here: tests that need them are skipped.
+      - name: Tests
+        run: scripts/deploy.sh test
+
+      - name: APK
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then export ORG_GRADLE_PROJECT_versionName="${GITHUB_REF_NAME#v}"; fi
+          scripts/deploy.sh apk
+
+      - name: Signed with the right key
+        run: |
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/36.0.0/apksigner)
+          got=$("$apksigner" verify --print-certs dist/jisho-*.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)
+          echo "certificate SHA-256: $got"
+          [ "$got" = "$CERT_SHA256" ] || { echo "signed with another key: installed apps could not update"; exit 1; }
+
+      - name: Publish
+        if: github.ref_type == 'tag'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          previous=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_REF_NAME^" 2>/dev/null || true)
+          {
+            echo "## Changes"
+            echo
+            git log --no-merges --format='- %s' ${previous:+"$previous.."}"$GITHUB_REF_NAME"
+            echo
+            echo "The APK carries the built-in core index (open data). Dictionary packs are not distributed here."
+            echo "SHA-256 of the APK: see the .sha256 file."
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" dist/jisho-*.apk dist/jisho-*.apk.sha256 \
+            --title "辞書 $version" --notes-file notes.md --verify-tag
+
+      - name: Keep the APK
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/

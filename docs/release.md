@@ -33,7 +33,17 @@ scripts/deploy.sh push             # 只把数据包送到手机
 - 调试钥匙谁都能生成同名的，证书是「Android Debug」，不适合给别人装；
 - 这台 Mac 重装系统、调试钥匙丢了，以后的包就再也覆盖不了已经装出去的 App。
 
-### 方案：自己的发布钥匙
+### 现在的做法：用调试钥匙（2026-11-22 决定）
+
+项目只给自己和朋友用，release 包继续用这台 Mac 的调试钥匙签名（`~/.android/debug.keystore`，密码是公开的默认值 `android`）。好处是已经装出去的 App 都能直接覆盖更新，不用卸载重装。代价：
+
+- **钥匙文件就是唯一的秘密**：谁拿到它，谁就能签出能覆盖这个 App 的「更新」。只放在这台 Mac 和 GitHub Secrets（`DEBUG_KEYSTORE_BASE64`）里，不要发给别人。
+- **一定要另外备份这个文件**（密码管理器或加密网盘）。GitHub Secrets 只能写不能读，不算备份；Mac 重装后文件丢了，以后的包就再也覆盖不了已装的 App。
+- 证书名是「Android Debug」，不能上架 Google Play（本项目也不上架）。
+
+证书指纹（SHA-256）是 `57:F4:A0:91:…:32:ED:87`，写在 `.github/workflows/release.yml` 里，自动发布时核对。
+
+### 以后想换成自己的发布钥匙
 
 生成一把只属于这个项目的钥匙，本机和以后的 CI 用同一把。`app/build.gradle.kts` 已经支持：有钥匙就用它签，没有就退回调试钥匙（自己手机上照常能用）；加 `-PrequireReleaseSigning=true` 时必须有钥匙，否则直接失败（给以后的 CI 用）。
 
@@ -60,7 +70,7 @@ scripts/deploy.sh push             # 只把数据包送到手机
 
 ## 分发给朋友
 
-**APK**：`scripts/deploy.sh apk` 打出 `dist/jisho-<版本>.apk`，可以手动传到 GitHub 仓库的 Releases 页面（或网盘）。朋友有两种方式：
+**APK**：打版本标签后自动发布到 GitHub 仓库的 [Releases](https://github.com/qiuqiu-du/jibiki/releases) 页面（见下文「GitHub 自动发布」），把链接发给朋友即可。朋友有两种方式：
 - 直接下载安装（要允许「安装未知来源应用」）；
 - 如果放在 GitHub Releases，可以装 [Obtainium](https://github.com/ImranR98/Obtainium) 填仓库地址，以后有新 Release 会提醒更新。
 
@@ -72,13 +82,23 @@ APK 里没有任何辞书内容，放在公开仓库的 Release 里没有问题�
 - 给朋友用时，最稳妥的做法是：朋友自己有辞书文件，用 `scripts/deploy.sh data` 自己生成。
 - 你直接把自己生成的数据包发给朋友，属于把辞书内容转给别人，是否允许取决于你和他们的授权情况，需要你自己判断，项目和脚本不提供这条路。
 
-## 以后接入 CI（如 GitHub Actions）
+## GitHub 自动发布（`.github/workflows/release.yml`）
 
-现在没有配置 CI。脚本已经为接入做好准备，到时只需在 CI 里：
+**发布一个版本**：确认改动都已提交并推送，然后打版本标签并推送：
 
-1. 装 JDK 17，检出时取完整历史（`versionCode` 取 git 提交数）；
-2. 把发布钥匙和密码放进 CI 的密钥设置，运行时还原成文件，并设置环境变量 `JISHO_KEYSTORE`、`JISHO_KEYSTORE_PASSWORD`、`JISHO_KEY_ALIAS`、`JISHO_KEY_PASSWORD`；
-3. 设置 `ORG_GRADLE_PROJECT_requireReleaseSigning=true`：缺钥匙时直接失败，不会产出调试签名的包；需要时用 `ORG_GRADLE_PROJECT_versionName` 指定版本名；
-4. 运行 `scripts/deploy.sh test apk`，产物在 `dist/`。
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
 
-CI 上没有辞书原文件，所以只做测试（需要数据包的测试自动跳过）和 APK，不生成数据包。生成 core.db 还要 `sources/jiten/frequency_list_global.csv`：jiten.moe 拒绝脚本下载，CI 里要事先放好这个文件（比如作为缓存或私有附件）。
+GitHub 的服务器（约 10 分钟）依次：取完整提交历史 → 装 JDK 17、Android SDK、Python → 还原调试钥匙 → 下载开放数据 → 生成 core.db → 跑电脑端测试 → 打包（显示版本取标签名，`v0.2.0` → `0.2.0`；内部版本号仍是提交数）→ 核对签名证书指纹 → 在 Releases 页面发布 APK 和 `.sha256`，发布说明列出上一个版本标签以来的提交。任何一步失败都不会发布，GitHub 会发邮件提醒。
+
+**只试打包不发布**：GitHub 网页 Actions → Release → Run workflow。打出的 APK 在那次运行的 Artifacts 里（保留 90 天，要登录 GitHub 下载）。
+
+**开放数据**：JMdict、Kanjium、Jiten 词频放在仓库的 [data-sources](https://github.com/qiuqiu-du/jibiki/releases/tag/data-sources) Release 里（不是 App 版本，已标为预发布），打包时从这里下载，保证和本机测试时用的是同一份。更新 `sources/` 里的文件后，替换附件：
+
+```bash
+gh release upload data-sources sources/jmdict/JMdict_e.gz sources/kanjium/accents.txt sources/jiten/frequency_list_global.csv --clobber
+```
+
+服务器上没有辞书原文件，所以不生成数据包，需要数据包的测试自动跳过。

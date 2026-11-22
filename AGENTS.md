@@ -122,6 +122,7 @@ scrcpy --stay-awake --max-size 1400              # 在 Mac 上实时查看手机
 adb exec-out screencap -p > /tmp/screen.png      # 截图，用来验证界面
 adb push datapacks/ /sdcard/Download/jisho/      # 推送数据包到手机（之后在 App 里选文件夹导入）
 scripts/deploy.sh                                # 一条龙：数据包 → 检查 → 测试 → release APK（dist/）；install、push 送到手机，见 docs/release.md
+git tag v0.2.0 && git push origin v0.2.0        # 发布：GitHub Actions 打包、核对签名、发到 Releases（docs/release.md）
 scripts/push-datapacks.sh                        # debug 版：直接把数据包放进 App 私有目录，免去手动导入
 scripts/test-jvm.sh                              # 只用电脑：数据包检查 + JVM 测试（不需要手机）
 scripts/test-device.sh                           # 需要手机：真机测试 + 打印手机上测到的性能数值
