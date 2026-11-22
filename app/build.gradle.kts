@@ -70,6 +70,10 @@ android {
     }
 
     signingConfigs {
+        // CI passes the maintainer's debug key explicitly (-PdebugKeystore): where Gradle looks for
+        // ~/.android/debug.keystore depends on the machine's environment, and a missing one is
+        // silently replaced by a new key, whose builds can't update installed apps.
+        providers.gradleProperty("debugKeystore").orNull?.let { getByName("debug").storeFile = file(it) }
         if (hasReleaseKey) create("release") {
             storeFile = rootProject.file(signing.getValue("storeFile")!!)
             storePassword = signing["storePassword"]

@@ -40,12 +40,14 @@ jobs:
       - name: Android SDK
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
 
-      # Before any Gradle run: Gradle would otherwise make a new debug key of its own.
+      # Passed to Gradle by path (ORG_GRADLE_PROJECT_debugKeystore, app/build.gradle.kts): the
+      # default ~/.android location depends on the runner's environment variables.
       - name: Signing key
         run: |
-          mkdir -p ~/.android
-          printf '%s' "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
-          test -s ~/.android/debug.keystore || { echo "secret DEBUG_KEYSTORE_BASE64 is missing"; exit 1; }
+          key="$RUNNER_TEMP/debug.keystore"
+          printf '%s' "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > "$key"
+          test -s "$key" || { echo "secret DEBUG_KEYSTORE_BASE64 is missing"; exit 1; }
+          echo "ORG_GRADLE_PROJECT_debugKeystore=$key" >> "$GITHUB_ENV"
 
       # The same open data as the maintainer's computer (release data-sources), so the built-in
       # core.db is the one the tests ran on; jiten.moe refuses scripts anyway.
