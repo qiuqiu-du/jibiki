@@ -33,7 +33,7 @@ class DictDbTest {
         val img = Regex("<img src=\"([^\"]+)\">")
         dicts.forEach { d ->
             val ids = d.allIds()
-            val idSet = ids.toHashSet()
+            val idSet = ids.toHashSet() + d.sameIds().keys
             val problems = mutableListOf<String>()
             ids.forEach { id ->
                 val e = d.entry(id)!!
@@ -50,6 +50,26 @@ class DictDbTest {
                 if ("［〓］" in e.body || "［3分の2］" in e.body) problems += "gaiji placeholder in #$id"
             }
             assertTrue("${d.dictId}: ${problems.take(10)} (${problems.size} total)", problems.isEmpty())
+        }
+    }
+
+    /**
+     * No item is stored twice (新世纪 had a fifth of its items twice, once per spelling: 帰る showed
+     * its definition twice), and every id of an item stored once still opens it (favorites).
+     */
+    @Test
+    fun noItemIsStoredTwiceAndMergedIdsStillOpen() {
+        dicts.forEach { d ->
+            val seen = HashMap<String, Long>()
+            val twice = d.allIds().mapNotNull { id ->
+                val e = d.entry(id)!!
+                seen.put(e.title + "\n" + e.body, id)?.let { "#$it = #$id ${e.title}" }
+            }
+            assertTrue("${d.dictId}: ${twice.take(5)} (${twice.size} total)", twice.isEmpty())
+            d.sameIds().forEach { (id, target) ->
+                assertEquals("${d.dictId} #$id", target, d.entry(id)?.id)
+                assertTrue("${d.dictId} #$id", d.body(id) == d.entry(target)!!.body)
+            }
         }
     }
 

@@ -70,6 +70,9 @@ def check_pack(core, dict_id):
     conn, dctx = open_pack(dict_id)
     n = conn.execute("SELECT count(*) FROM dict_entry").fetchone()[0]
     ids = {r[0] for r in conn.execute("SELECT id FROM dict_entry")}
+    # Ids of items stored once under an earlier id (build_dict.py) still open: links may use them.
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'dict_same'").fetchone():
+        ids |= {r[0] for r in conn.execute("SELECT id FROM dict_same")}
 
     # Markup vocabulary and link integrity over every entry.
     bad_tags, bad_links = {}, 0

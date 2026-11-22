@@ -1,6 +1,6 @@
 # 日语词典 App 设计明细文档
 
-最后更新：2026-11-21
+最后更新：2026-11-22
 
 > 本文件是设计文档的**唯一维护版本**，需求以此为准。编码规范见 [../Architecture.md](../Architecture.md)，AI 协作说明见 [../AGENTS.md](../AGENTS.md)。
 
@@ -436,6 +436,7 @@ flowchart TD
 | dict_entry | dict_&lt;id&gt;.db | id、压缩后的「标题 + 正文」 |
 | dict_link | dict_&lt;id&gt;.db | 辞书词条 id ↔ JMdict entry id（多对多） |
 | dict_key | dict_&lt;id&gt;.db | 只存 core.db 查不到的查询键（百科条目、惯用句等） |
+| dict_same | dict_&lt;id&gt;.db | 和前面某条标题、正文完全相同的条目只存一份，它的序号指向那一条（新世纪按写法重复存了约五分之一；保留序号是为了让已有收藏照样能打开） |
 | zdict | dict_&lt;id&gt;.db | zstd 训练字典 |
 | media | dict_&lt;id&gt;.db | 外字图片：名称、PNG/GIF 数据（schema 2 起） |
 | dictionary | user.db | id、名称、类型（国语 / 音调）、优先级、是否启用（M3 先存在 DataStore 设置里：顺序和停用的辞书 id，M4 建 user.db 时再迁移） |

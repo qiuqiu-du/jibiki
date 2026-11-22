@@ -20,6 +20,10 @@ CREATE TABLE dict_entry (
 -- Lookup keys NOT already covered by core.db search_key + dict_link.
 CREATE TABLE dict_key (key TEXT NOT NULL, entry_id INTEGER NOT NULL, PRIMARY KEY (key, entry_id)) WITHOUT ROWID;
 CREATE TABLE dict_link (entry_id INTEGER NOT NULL, core_id INTEGER NOT NULL, PRIMARY KEY (core_id, entry_id)) WITHOUT ROWID;
+-- Items whose title and body are the same as an earlier item's (the source stores some words
+-- once per spelling, 新世纪: 帰る and 還る): stored once; their ids, kept so that saved places
+-- (favorites: dict:<id>:<n>) still open, lead to that item. Read only when dict_entry lacks the id.
+CREATE TABLE dict_same (id INTEGER PRIMARY KEY NOT NULL, target INTEGER NOT NULL);
 -- Pictures referenced by <img src="NAME"> in bodies (gaiji): PNG or GIF bytes.
 CREATE TABLE media (name TEXT PRIMARY KEY NOT NULL, data BLOB NOT NULL) WITHOUT ROWID;
 """

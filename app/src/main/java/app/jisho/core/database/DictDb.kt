@@ -40,11 +40,30 @@ class DictDb(private val db: SqlDb, fallbackId: String) : AutoCloseable {
 
     fun entriesForCore(coreId: Long): List<DictEntry> = linkedIds(coreId).mapNotNull { entry(it) }
 
-    fun entry(id: Long): DictEntry? =
-        db.query("SELECT body FROM dict_entry WHERE id = $id") { it.blob(0) }.firstOrNull()?.let { toEntry(id, it) }
+    fun entry(id: Long): DictEntry? = stored(id)?.let { (at, blob) -> toEntry(at, blob) }
+
+    /**
+     * An item's id and stored body. An item identical to an earlier one is stored once; its id
+     * leads to that one (dict_same, tools/build_dict.py), so saved places still open. Packs
+     * built before that have every id and no such table: it is read only when the id is missing.
+     */
+    private fun stored(id: Long): Pair<Long, ByteArray>? {
+        db.query("SELECT body FROM dict_entry WHERE id = $id") { it.blob(0) }.firstOrNull()?.let { return id to it }
+        if (!hasSame) return null
+        val target = db.query("SELECT target FROM dict_same WHERE id = $id") { it.long(0) }.firstOrNull() ?: return null
+        return db.query("SELECT body FROM dict_entry WHERE id = $target") { it.blob(0) }.firstOrNull()?.let { target to it }
+    }
+
+    private val hasSame: Boolean by lazy {
+        db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'dict_same'") { it.long(0) }.isNotEmpty()
+    }
 
     /** Every entry id, in order (for whole-dictionary checks in tests). */
     fun allIds(): List<Long> = db.query("SELECT id FROM dict_entry ORDER BY id") { it.long(0) }
+
+    /** Ids of items stored once under an earlier id, with that id (for tests; see [stored]). */
+    fun sameIds(): Map<Long, Long> =
+        if (!hasSame) emptyMap() else db.query("SELECT id, target FROM dict_same") { it.long(0) to it.long(1) }.toMap()
 
     /** Keys that only this dictionary knows (core.db cannot reach them). */
     fun searchOwnKeys(key: String, limit: Int = 20): List<DictCandidate> {
@@ -68,7 +87,7 @@ class DictDb(private val db: SqlDb, fallbackId: String) : AutoCloseable {
      * meanings, which are plain text (each picture is one more query).
      */
     fun body(id: Long): String? =
-        db.query("SELECT body FROM dict_entry WHERE id = $id") { it.blob(0) }.firstOrNull()
+        stored(id)?.second
             ?.let { decompress(it) }?.let { text -> text.indexOf('\n').let { if (it < 0) "" else text.substring(it + 1) } }
 
     private fun decompress(blob: ByteArray): String {

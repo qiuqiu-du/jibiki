@@ -158,10 +158,22 @@ def main(dict_id):
     all_keys = len(keys)
     keys = {(k, i) for k, i in keys if not (core_keys.get(k, set()) & linked[i])}
 
-    print("training zstd dictionary ...", flush=True)
+    # Items identical to an earlier one (title and body) are stored once: their keys and links
+    # move to the first, and their ids lead there (dict_same).
     encoded = [(e.title + "\n" + b).encode("utf-8") for e, b in zip(entries, bodies)]
+    first_of, same = {}, {}
+    for i, b in enumerate(encoded, 1):
+        j = first_of.setdefault(b, i)
+        if j != i:
+            same[i] = j
+    keys = {(k, same.get(i, i)) for k, i in keys}
+    links = sorted({(same.get(i, i), s) for i, s in links})
+    stored = [(i, b) for i, b in enumerate(encoded, 1) if i not in same]
+
+    print("training zstd dictionary ...", flush=True)
     rnd = random.Random(0)
-    zdict = train_zdict(rnd.sample(encoded, min(len(encoded), 60000)))
+    unique = [b for _, b in stored]
+    zdict = train_zdict(rnd.sample(unique, min(len(unique), 60000)))
     cctx = zstandard.ZstdCompressor(level=ZSTD_LEVEL, dict_data=zdict, write_content_size=True,
                                     write_checksum=False, write_dict_id=False)
 
@@ -170,8 +182,9 @@ def main(dict_id):
     conn.execute("INSERT INTO zdict VALUES (1, ?)", (zdict.as_bytes(),))
     conn.executemany(
         "INSERT INTO dict_entry VALUES (?,?)",
-        [(i, cctx.compress(b)) for i, b in enumerate(encoded, 1)],
+        [(i, cctx.compress(b)) for i, b in stored],
     )
+    conn.executemany("INSERT INTO dict_same VALUES (?,?)", sorted(same.items()))
     conn.executemany("INSERT OR IGNORE INTO dict_key VALUES (?,?)", sorted(keys))
     conn.executemany("INSERT OR IGNORE INTO dict_link VALUES (?,?)", links)
     media = adapter.gaiji.media() if adapter.gaiji else {}
@@ -186,14 +199,15 @@ def main(dict_id):
         # lists titles side by side, so every run of whitespace becomes one ASCII space.
         "title": " ".join(adapter.title.split()),
         "revision": adapter.revision,
-        "entry_count": len(entries),
+        "entry_count": len(stored),
     })
     if hasattr(module, "pitch_heads"):
         add_pitch(conn, module.PITCH_SOURCE, module.pitch_heads())
     finish_db(conn, out)
 
-    raw_mb = sum(len(b) for b in encoded) / 1e6
-    print(f"aligned to JMdict: {aligned}/{len(entries)} = {aligned / len(entries):.1%}")
+    raw_mb = sum(len(b) for b in unique) / 1e6
+    print(f"aligned to JMdict: {aligned}/{len(entries)} = {aligned / len(entries):.1%}; "
+          f"identical items stored once: {len(same)}")
     print(f"links: {dict(link_stats)}; gaiji images: {sum(images.values())} ({len(images)} distinct, "
           f"{sum(map(len, media.values())) / 1e3:.1f} KB)")
     print(f"keys {len(keys)} (of {all_keys})  body markup {raw_mb:.1f} MB  pack {out.stat().st_size / 1e6:.1f} MB")
